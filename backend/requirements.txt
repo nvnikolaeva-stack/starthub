@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+sqlalchemy
+alembic
+pydantic
+ics
+python-multipart
+anthropic>=0.40.0

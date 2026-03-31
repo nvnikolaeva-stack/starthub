@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.py[cod]
+*$py.class
+.Python
+venv/
+.venv/
+env/
+*.db
+*.sqlite3
+alembic/versions/*.pyc
+
+# Node
+node_modules/
+.next/
+out/
+
+# Env (секреты не коммитить)
+.env
+backend/.env
+bot/.env
+frontend/.env.local
+frontend/.env.production
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
