@@ -1,0 +1,57 @@
+:root {
+  /* Base */
+  --color-bg: #f7f9fc;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f0f3f7;
+  --color-surface-tinted: #e7eef5;
+
+  /* Text */
+  --color-text: #0b1220;
+  --color-text-secondary: #3d4d5c;
+  --color-text-muted: #55606e;
+  --color-text-placeholder: #6a7585;
+
+  /* Primary & Accent */
+  --color-primary: #0f172a;
+  --color-accent: #b8f34a;
+  --color-accent-hover: #a5e035;
+  --color-accent-text: #0b1220;
+
+  /* Borders */
+  --color-border: #e2e8f0;
+  --color-border-hover: #cbd5e1;
+  --color-border-focus: #0f172a;
+
+  /* Status */
+  --color-success: #12b76a;
+  --color-warning: #f59e0b;
+  --color-error: #e11d48;
+  --color-info: #3b82f6;
+
+  /* Sport semantic colors */
+  --sport-running: #b8f34a;
+  --sport-running-bg: #f0fbd8;
+  --sport-running-text: #2d5a00;
+  --sport-swimming: #38bdf8;
+  --sport-swimming-bg: #e0f2fe;
+  --sport-swimming-text: #075985;
+  --sport-triathlon: #a78bfa;
+  --sport-triathlon-bg: #ede9fe;
+  --sport-triathlon-text: #5b21b6;
+  --sport-cycling: #fb923c;
+  --sport-cycling-bg: #fff7ed;
+  --sport-cycling-text: #9a3412;
+  --sport-other: #94a3b8;
+  --sport-other-bg: #f1f5f9;
+  --sport-other-text: #475569;
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
