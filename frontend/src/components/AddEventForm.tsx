@@ -1,29 +1,35 @@
 "use client";
 
-import type { Event, SportType } from "@/lib/types";
+import type { Event, SimilarEventMatch, SportType } from "@/lib/types";
 import {
   ApiError,
   createEvent,
   createParticipant,
   createRegistration,
   getDistances,
+  searchSimilarEvents,
 } from "@/lib/api";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
 import {
   FriendEntry,
   ParticipantSelector,
 } from "@/components/ParticipantSelector";
-import { dayKey, parseISODate } from "@/lib/dates";
+import {
+  dayKey,
+  formatCompactDayMonthLocalized,
+  parseISODate,
+} from "@/lib/dates";
 import { EventCard } from "@/components/EventCard";
 import { SportIcon } from "@/components/SportIcon";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   useCallback,
   useEffect,
@@ -105,7 +111,9 @@ function registrationPreview(
 export function AddEventForm(props: { initialDate?: string } = {}) {
   const { initialDate } = props;
   const router = useRouter();
+  const locale = useLocale();
   const t = useTranslations("addForm");
+  const te = useTranslations("event");
   const tv = useTranslations("addForm.validation");
   const [sportType, setSportType] = useState<SportType>("running");
   const [name, setName] = useState("");
@@ -130,6 +138,25 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
   const [success, setSuccess] = useState(false);
   const isMobile = useIsMobile();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [nameSimilar, setNameSimilar] = useState<SimilarEventMatch[]>([]);
+  const [dateSimilarExact, setDateSimilarExact] = useState<
+    SimilarEventMatch[]
+  >([]);
+  const [dateSimilarRest, setDateSimilarRest] = useState<SimilarEventMatch[]>(
+    []
+  );
+  const [dateSimilarOpen, setDateSimilarOpen] = useState(false);
+  const [exactDupMatches, setExactDupMatches] = useState<SimilarEventMatch[]>(
+    []
+  );
+  const [dupForceCreate, setDupForceCreate] = useState(false);
+  const [joinModalEvent, setJoinModalEvent] = useState<SimilarEventMatch | null>(
+    null
+  );
+  const [joinName, setJoinName] = useState("");
+  const [joinDistOptions, setJoinDistOptions] = useState<string[]>([]);
+  const [joinDistance, setJoinDistance] = useState("");
+  const [joinBusy, setJoinBusy] = useState(false);
 
   useLayoutEffect(() => {
     setMoreOpen(!isMobile);
@@ -140,6 +167,102 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
       setDateStart(initialDate);
     }
   }, [initialDate]);
+
+  useEffect(() => {
+    const q = name.trim();
+    if (q.length < 3) {
+      setNameSimilar([]);
+      return;
+    }
+    let dead = false;
+    const tid = setTimeout(() => {
+      void searchSimilarEvents({ name: q })
+        .then((r) => {
+          if (dead) return;
+          setNameSimilar(r.exact_matches ?? []);
+        })
+        .catch(() => {
+          if (!dead) setNameSimilar([]);
+        });
+    }, 300);
+    return () => {
+      dead = true;
+      clearTimeout(tid);
+    };
+  }, [name]);
+
+  useEffect(() => {
+    if (!dateStart || !/^\d{4}-\d{2}-\d{2}$/.test(dateStart)) {
+      setDateSimilarExact([]);
+      setDateSimilarRest([]);
+      setDateSimilarOpen(false);
+      return;
+    }
+    let dead = false;
+    void searchSimilarEvents({ date: dateStart })
+      .then((r) => {
+        if (dead) return;
+        const ex = r.exact_matches ?? [];
+        const dm = r.date_matches ?? [];
+        setDateSimilarExact(ex);
+        setDateSimilarRest(dm);
+        if (!ex.length && !dm.length) setDateSimilarOpen(false);
+      })
+      .catch(() => {
+        if (!dead) {
+          setDateSimilarExact([]);
+          setDateSimilarRest([]);
+        }
+      });
+    return () => {
+      dead = true;
+    };
+  }, [dateStart]);
+
+  useEffect(() => {
+    setDupForceCreate(false);
+  }, [name, dateStart]);
+
+  useEffect(() => {
+    const q = name.trim();
+    if (q.length < 3 || !dateStart || !/^\d{4}-\d{2}-\d{2}$/.test(dateStart)) {
+      setExactDupMatches([]);
+      return;
+    }
+    let dead = false;
+    void searchSimilarEvents({ name: q, date: dateStart })
+      .then((r) => {
+        if (dead) return;
+        setExactDupMatches(r.exact_matches ?? []);
+      })
+      .catch(() => {
+        if (!dead) setExactDupMatches([]);
+      });
+    return () => {
+      dead = true;
+    };
+  }, [name, dateStart]);
+
+  useEffect(() => {
+    if (!joinModalEvent) return;
+    setJoinName((prev) => prev || authorName.trim());
+    let c = false;
+    void getDistances(String(joinModalEvent.sport_type))
+      .then((list) => {
+        if (c) return;
+        setJoinDistOptions(list);
+        setJoinDistance((d) => (list.includes(d) ? d : list[0] ?? ""));
+      })
+      .catch(() => {
+        if (!c) {
+          setJoinDistOptions([]);
+          setJoinDistance("");
+        }
+      });
+    return () => {
+      c = true;
+    };
+  }, [joinModalEvent, authorName]);
 
   const chipsSport = sportType === "running" || sportType === "triathlon";
   const freeDistSport =
@@ -244,6 +367,63 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
     setErrors({});
     setSubmitError(null);
     setSuccess(false);
+    setNameSimilar([]);
+    setDateSimilarExact([]);
+    setDateSimilarRest([]);
+    setDateSimilarOpen(false);
+    setExactDupMatches([]);
+    setDupForceCreate(false);
+    setJoinModalEvent(null);
+    setJoinName("");
+    setJoinDistOptions([]);
+    setJoinDistance("");
+  };
+
+  const formatEvDate = (iso: string) =>
+    formatCompactDayMonthLocalized(parseISODate(iso), locale);
+
+  const dateHintEvents = useMemo(() => {
+    const seen = new Set<string>();
+    const out: SimilarEventMatch[] = [];
+    for (const ev of dateSimilarExact) {
+      if (!seen.has(ev.id)) {
+        seen.add(ev.id);
+        out.push(ev);
+      }
+    }
+    for (const ev of dateSimilarRest) {
+      if (!seen.has(ev.id)) {
+        seen.add(ev.id);
+        out.push(ev);
+      }
+    }
+    return out;
+  }, [dateSimilarExact, dateSimilarRest]);
+
+  const submitJoinSimilar = async () => {
+    if (!joinModalEvent || !joinName.trim() || !joinDistance) return;
+    const targetId = joinModalEvent.id;
+    setJoinBusy(true);
+    setSubmitError(null);
+    try {
+      const p = await createParticipant({
+        display_name: joinName.trim(),
+      });
+      await createRegistration({
+        event_id: targetId,
+        participant_id: p.id,
+        distances: [joinDistance.trim()],
+      });
+      setJoinModalEvent(null);
+      setSuccess(true);
+      setTimeout(() => router.push(`/event/${targetId}`), 600);
+    } catch (err) {
+      setSubmitError(
+        err instanceof ApiError ? err.message : t("saveFailed")
+      );
+    } finally {
+      setJoinBusy(false);
+    }
   };
 
   const validate = (): boolean => {
@@ -310,7 +490,9 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
         notes: notes.trim() || null,
         created_by: authorName.trim(),
       };
-      const saved = await createEvent(eventPayload);
+      const saved = await createEvent(eventPayload, {
+        forceDuplicate: dupForceCreate && exactDupMatches.length > 0,
+      });
 
       const adist =
         authorDistance && selectedDistances.includes(authorDistance)
@@ -333,9 +515,13 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
       setSuccess(true);
       setTimeout(() => router.push(`/event/${saved.id}`), 900);
     } catch (err) {
-      setSubmitError(
-        err instanceof ApiError ? err.message : t("saveFailed")
-      );
+      if (err instanceof ApiError && err.status === 409) {
+        setSubmitError(t("duplicate409Hint"));
+      } else {
+        setSubmitError(
+          err instanceof ApiError ? err.message : t("saveFailed")
+        );
+      }
     } finally {
       setSaving(false);
     }
@@ -407,6 +593,7 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
           className="min-w-0 flex-1 space-y-5 pb-28 lg:max-w-[60%] lg:pb-0"
           onSubmit={onSubmit}
         >
+          <style>{`@keyframes addSimilarIn{from{opacity:0}to{opacity:1}}`}</style>
           <div>
             <Label htmlFor="sport">{t("sportType")}</Label>
             <div className="mt-1 flex items-center gap-2">
@@ -446,6 +633,50 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
             {errors.name && (
               <p className="text-sm text-red-600">{errors.name}</p>
             )}
+            {nameSimilar.length > 0 ? (
+              <div
+                className="mt-3 w-full space-y-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-tinted)] p-3 transition-opacity duration-200 sm:p-4"
+                style={{ animation: "addSimilarIn 0.2s ease-out" }}
+              >
+                <p className="text-sm font-medium text-[var(--color-text)]">
+                  📌 {t("similarNameTitle")}
+                </p>
+                <div className="space-y-2">
+                  {nameSimilar.map((ev) => (
+                    <div
+                      key={ev.id}
+                      className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-sm"
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="font-medium text-[var(--color-text)]">
+                            {ev.name}
+                          </p>
+                          <p className="text-xs text-[var(--color-text-muted)]">
+                            {formatEvDate(ev.date_start)} • {ev.location} •{" "}
+                            {te("participantsCountInline", {
+                              count: ev.participants_count,
+                            })}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0"
+                          onClick={() => setJoinModalEvent(ev)}
+                        >
+                          {t("similarJoin")}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  {t("similarContinueCreate")}
+                </p>
+              </div>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -465,6 +696,116 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
               )}
             </div>
           </div>
+
+          {dateHintEvents.length > 0 ? (
+            <div
+              className="w-full space-y-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-tinted)] p-3 transition-opacity duration-200 sm:p-4"
+              style={{ animation: "addSimilarIn 0.2s ease-out" }}
+            >
+              <p className="text-sm font-medium text-[var(--color-text)]">
+                📅 {t("similarDateTitle")}
+              </p>
+              {!dateSimilarOpen ? (
+                <ul className="list-inside list-disc space-y-1 text-sm text-[var(--color-text)]">
+                  {dateHintEvents.map((ev) => (
+                    <li key={ev.id}>
+                      <span className="font-medium">{ev.name}</span> (
+                      {SPORT_VALUES.includes(ev.sport_type as SportType)
+                        ? t(SPORT_MSG_KEY[ev.sport_type as SportType])
+                        : ev.sport_type}
+                      ,{" "}
+                      {te("participantsCountInline", {
+                        count: ev.participants_count,
+                      })}
+                      )
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="space-y-2">
+                  {dateHintEvents.map((ev) => (
+                    <div
+                      key={ev.id}
+                      className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-sm"
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="font-medium">{ev.name}</p>
+                          <p className="text-xs text-[var(--color-text-muted)]">
+                            {formatEvDate(ev.date_start)} • {ev.location} •{" "}
+                            {te("participantsCountInline", {
+                              count: ev.participants_count,
+                            })}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0"
+                          onClick={() => setJoinModalEvent(ev)}
+                        >
+                          {t("similarJoin")}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={() => setDateSimilarOpen((o) => !o)}
+              >
+                {dateSimilarOpen
+                  ? t("similarPickCollapse")
+                  : t("similarPickExpand")}
+              </Button>
+            </div>
+          ) : null}
+
+          {!dupForceCreate && exactDupMatches.length > 0 ? (
+            <div
+              className="space-y-3 rounded-[var(--radius-lg)] border-2 border-amber-400 bg-amber-50/95 p-4 text-amber-950 shadow-sm transition-opacity duration-200 dark:border-amber-500/70 dark:bg-amber-950/40 dark:text-amber-50"
+              style={{ animation: "addSimilarIn 0.2s ease-out" }}
+            >
+              <p className="text-sm font-semibold">⚠️ {t("similarExactTitle")}</p>
+              {exactDupMatches.slice(0, 3).map((ev) => (
+                <div key={ev.id}>
+                  <p className="text-sm">
+                    <span className="font-medium">{ev.name}</span> •{" "}
+                    {formatEvDate(ev.date_start)} • {ev.location}
+                  </p>
+                  <p className="text-xs text-amber-900/80 dark:text-amber-100/80">
+                    {ev.participants.slice(0, 8).join(", ")}
+                    {ev.participants.length > 8
+                      ? ` (+${ev.participants.length - 8})`
+                      : ""}{" "}
+                    ({ev.participants_count})
+                  </p>
+                </div>
+              ))}
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  className="bg-amber-600 text-white hover:bg-amber-700"
+                  onClick={() => setJoinModalEvent(exactDupMatches[0])}
+                >
+                  {t("similarJoinThis")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-amber-600 text-amber-950 hover:bg-amber-100 dark:border-amber-400 dark:text-amber-50 dark:hover:bg-amber-900/50"
+                  onClick={() => setDupForceCreate(true)}
+                >
+                  {t("similarCreateAnyway")}
+                </Button>
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap items-center gap-3">
             <Label htmlFor="md" className="cursor-pointer">
@@ -808,6 +1149,62 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
           </Button>
         </div>
       ) : null}
+
+      <Dialog
+        open={joinModalEvent !== null}
+        onOpenChange={(open) => {
+          if (!open) setJoinModalEvent(null);
+        }}
+        title={t("joinModalTitle")}
+      >
+        {joinModalEvent ? (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="join-n">{t("joinModalName")}</Label>
+              <Input
+                id="join-n"
+                value={joinName}
+                onChange={(e) => setJoinName(e.target.value)}
+                className="mt-1"
+                autoComplete="name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="join-d">{t("joinModalDistance")}</Label>
+              {joinDistOptions.length > 0 ? (
+                <select
+                  id="join-d"
+                  value={joinDistance}
+                  onChange={(e) => setJoinDistance(e.target.value)}
+                  className="mt-1 flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                >
+                  {joinDistOptions.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  id="join-d"
+                  value={joinDistance}
+                  onChange={(e) => setJoinDistance(e.target.value)}
+                  className="mt-1"
+                  placeholder={t("freeDistPlaceholder")}
+                />
+              )}
+            </div>
+            <Button
+              type="button"
+              className="w-full bg-sky-600 text-white hover:bg-sky-700"
+              disabled={joinBusy || !joinName.trim() || !joinDistance.trim()}
+              onClick={() => void submitJoinSimilar()}
+            >
+              {t("joinModalSubmit")}
+            </Button>
+          </div>
+        ) : null}
+      </Dialog>
     </div>
   );
 }

@@ -330,6 +330,51 @@ def duration_range_confirm_keyboard(lang: str) -> InlineKeyboardMarkup:
     )
 
 
+def similar_events_keyboard(events: list[dict], lang: str) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for ev in events:
+        eid = str(ev.get("id", ""))
+        raw = str(ev.get("name", "")).strip()
+        cap = raw if len(raw) <= 28 else raw[:25] + "…"
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=t(lang, "similar_join_btn", name=cap),
+                    callback_data=f"add:similar:join:{eid}",
+                )
+            ]
+        )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text=t(lang, "similar_create_new"),
+                callback_data="add:similar:new",
+            )
+        ]
+    )
+    rows.extend(add_nav_rows(lang, False))
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def duplicate_save_keyboard(event_id: str, lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=t(lang, "dup409_join"),
+                    callback_data=f"add:dup409:join:{event_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=t(lang, "dup409_force"),
+                    callback_data="add:dup409:force",
+                )
+            ],
+        ]
+    )
+
+
 def distance_pick_keyboard(
     flow: str,
     options: list[str],

@@ -28,6 +28,21 @@ export interface Participant {
   created_at?: string;
 }
 
+export interface SimilarEventMatch {
+  id: string;
+  name: string;
+  date_start: string;
+  location: string;
+  sport_type: SportType | string;
+  participants_count: number;
+  participants: string[];
+}
+
+export interface SimilarEventsResponse {
+  exact_matches: SimilarEventMatch[];
+  date_matches: SimilarEventMatch[];
+}
+
 export interface Event {
   id: string;
   name: string;

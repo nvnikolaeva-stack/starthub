@@ -5,7 +5,7 @@ from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, or_
+from sqlalchemy import and_, func, not_, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -27,6 +27,7 @@ from app.schemas import (
     RegistrationCreate,
     RegistrationUpdate,
     RegistrationWithParticipant,
+    SimilarEventMatch,
 )
 
 
@@ -204,6 +205,120 @@ def create_event(db: Session, data: EventCreate) -> models.Event:
     db.commit()
     db.refresh(ev)
     return ev
+
+
+def find_duplicate_event_by_name_date(
+    db: Session, name: str, date_start: date
+) -> models.Event | None:
+    key = name.strip().lower()
+    if not key:
+        return None
+    return (
+        db.query(models.Event)
+        .filter(
+            func.lower(func.trim(models.Event.name)) == key,
+            models.Event.date_start == date_start,
+        )
+        .first()
+    )
+
+
+def _event_covers_day(on_date: date):
+    return or_(
+        and_(
+            models.Event.date_end.is_(None),
+            models.Event.date_start == on_date,
+        ),
+        and_(
+            models.Event.date_end.isnot(None),
+            models.Event.date_start <= on_date,
+            models.Event.date_end >= on_date,
+        ),
+    )
+
+
+def _similar_base_query(db: Session):
+    return db.query(models.Event).options(
+        joinedload(models.Event.registrations).joinedload(
+            models.Registration.participant
+        ),
+    )
+
+
+def _filter_name_substr(q, name_substr: str):
+    needle = name_substr.strip().lower()
+    if not needle:
+        return q
+    return q.filter(func.instr(func.lower(models.Event.name), needle) > 0)
+
+
+def _filter_date(q, on_date: date):
+    return q.filter(_event_covers_day(on_date))
+
+
+def event_to_similar_match(ev: models.Event) -> SimilarEventMatch:
+    names: list[str] = []
+    for r in ev.registrations or []:
+        p = r.participant
+        if p is not None and p.display_name:
+            names.append(p.display_name)
+    return SimilarEventMatch(
+        id=ev.id,
+        name=ev.name,
+        date_start=ev.date_start,
+        location=ev.location,
+        sport_type=ev.sport_type,
+        participants_count=len(names),
+        participants=names,
+    )
+
+
+def search_similar_events(
+    db: Session,
+    *,
+    name_substr: str | None,
+    on_date: date | None,
+) -> tuple[list[models.Event], list[models.Event]]:
+    n = name_substr.strip() if name_substr else ""
+    n = n or None
+
+    if n and not on_date:
+        rows = (
+            _filter_name_substr(_similar_base_query(db), n)
+            .order_by(models.Event.date_start)
+            .limit(5)
+            .all()
+        )
+        return rows, []
+
+    if on_date and not n:
+        rows = (
+            _filter_date(_similar_base_query(db), on_date)
+            .order_by(models.Event.date_start)
+            .limit(5)
+            .all()
+        )
+        return [], rows
+
+    if on_date and n:
+        q_all_date = _filter_date(_similar_base_query(db), on_date)
+        exact_rows = (
+            _filter_name_substr(
+                _filter_date(_similar_base_query(db), on_date),
+                n,
+            )
+            .order_by(models.Event.date_start)
+            .limit(5)
+            .all()
+        )
+        exact_ids = {e.id for e in exact_rows}
+        rest_q = q_all_date
+        if exact_ids:
+            rest_q = rest_q.filter(not_(models.Event.id.in_(exact_ids)))
+        date_rows = rest_q.order_by(models.Event.date_start).limit(5).all()
+        return exact_rows, date_rows
+
+    return [], []
 
 
 def _validate_event_date_rule(date_start: date, date_end: date | None) -> None:

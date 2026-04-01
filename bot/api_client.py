@@ -7,9 +7,10 @@ import aiohttp
 
 
 class ApiError(Exception):
-    def __init__(self, status: int, detail: str):
+    def __init__(self, status: int, detail: str, payload: Any | None = None):
         self.status = status
         self.detail = detail
+        self.payload = payload
         super().__init__(f"API {status}: {detail}")
 
 
@@ -36,6 +37,7 @@ class ApiClient:
         *,
         params: dict[str, Any] | None = None,
         json_body: Any | None = None,
+        headers: dict[str, str] | None = None,
     ) -> Any:
         session = await self._session_get()
         kwargs: dict[str, Any] = {}
@@ -43,10 +45,17 @@ class ApiClient:
             kwargs["params"] = params
         if json_body is not None:
             kwargs["json"] = json_body
-        async with session.request(method, path, **kwargs) as resp:
+        hdrs = dict(headers) if headers else None
+        async with session.request(method, path, headers=hdrs, **kwargs) as resp:
             text = await resp.text()
             if resp.status >= 400:
-                raise ApiError(resp.status, text or resp.reason)
+                payload: Any = None
+                if text:
+                    try:
+                        payload = json.loads(text)
+                    except json.JSONDecodeError:
+                        pass
+                raise ApiError(resp.status, text or resp.reason, payload)
             if not text.strip():
                 return None
             ctype = resp.headers.get("Content-Type", "")
@@ -54,8 +63,28 @@ class ApiClient:
                 return json.loads(text)
             return text
 
-    async def create_event(self, data: dict[str, Any]) -> dict[str, Any]:
-        return await self._request("POST", "/api/v1/events", json_body=data)
+    async def create_event(
+        self, data: dict[str, Any], *, force_duplicate: bool = False
+    ) -> dict[str, Any]:
+        headers = {"X-Force-Create": "true"} if force_duplicate else None
+        return await self._request(
+            "POST", "/api/v1/events", json_body=data, headers=headers
+        )
+
+    async def search_similar_events(
+        self, *, name: str | None = None, date_str: str | None = None
+    ) -> dict[str, Any]:
+        params: dict[str, str] = {}
+        if name:
+            params["name"] = name
+        if date_str:
+            params["date"] = date_str
+        if not params:
+            return {"exact_matches": [], "date_matches": []}
+        res = await self._request(
+            "GET", "/api/v1/events/search/similar", params=params
+        )
+        return res if isinstance(res, dict) else {}
 
     async def get_events(self, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         res = await self._request("GET", "/api/v1/events", params=params)
@@ -92,7 +121,13 @@ class ApiClient:
         async with session.delete(f"/api/v1/events/{event_id}") as resp:
             text = await resp.text()
             if resp.status >= 400:
-                raise ApiError(resp.status, text or resp.reason)
+                payload: Any = None
+                if text:
+                    try:
+                        payload = json.loads(text)
+                    except json.JSONDecodeError:
+                        pass
+                raise ApiError(resp.status, text or resp.reason, payload)
 
     async def update_registration(
         self, registration_id: str, data: dict[str, Any]

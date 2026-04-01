@@ -1,3 +1,4 @@
+# API
 fastapi
 uvicorn
 sqlalchemy
@@ -6,3 +7,10 @@ pydantic
 ics
 python-multipart
 anthropic>=0.40.0
+
+# Telegram-бот (тот же процесс через run_all.py)
+aiogram>=3.0
+aiohttp
+python-dotenv
+dateparser
+APScheduler>=3.10.0

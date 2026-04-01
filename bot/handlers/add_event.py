@@ -24,6 +24,7 @@ from keyboards import (
     distance_custom_keyboard,
     distance_pick_keyboard,
     duration_range_confirm_keyboard,
+    duplicate_save_keyboard,
     edit_menu_keyboard,
     extras_manage_reply_keyboard,
     extras_remove_confirm_keyboard,
@@ -33,6 +34,7 @@ from keyboards import (
     nav_only_keyboard,
     preview_keyboard,
     skip_notes_keyboard,
+    similar_events_keyboard,
     skip_url_keyboard,
     sport_type_keyboard,
     yes_no_keyboard,
@@ -93,6 +95,213 @@ class AddEventFSM(StatesGroup):
     extras_manage = State()
     notes = State()
     preview = State()
+    similar_resolve = State()
+    adddup_dist = State()
+    adddup_custom = State()
+
+
+def _combine_similar_events(exact: list, date_m: list) -> list[dict]:
+    seen: set[str] = set()
+    out: list[dict] = []
+    for bucket in (exact, date_m):
+        for ev in bucket or []:
+            if not isinstance(ev, dict):
+                continue
+            eid = str(ev.get("id", ""))
+            if eid and eid not in seen:
+                seen.add(eid)
+                out.append(ev)
+    return out
+
+
+def _format_similar_event_lines(events: list[dict], locale: str) -> str:
+    blocks = []
+    for ev in events:
+        nm = html.escape(str(ev.get("name", "")))
+        sp = html.escape(sport_title_line(str(ev.get("sport_type", "")), locale))
+        loc = html.escape(str(ev.get("location", "")))
+        n = int(ev.get("participants_count") or 0)
+        pc = t(locale, "similar_participants_n", n=n)
+        blocks.append(f"📌 <b>{nm}</b>\n   {sp} • {loc} • {pc}")
+    return "\n\n".join(blocks)
+
+
+async def _offer_similar_by_name(
+    message: Message,
+    state: FSMContext,
+    client: ApiClient,
+    locale: str,
+    name_clean: str,
+) -> bool:
+    if len(name_clean) < 3:
+        return False
+    try:
+        res = await client.search_similar_events(name=name_clean, date_str=None)
+    except ApiError:
+        log.exception("search_similar name")
+        return False
+    exact = res.get("exact_matches") or []
+    if not exact:
+        return False
+    lines = _format_similar_event_lines(exact, locale)
+    body = (
+        f"{t(locale, 'similar_title_name')}\n\n{lines}\n\n"
+        f"{t(locale, 'similar_footer')}"
+    )
+    await state.update_data(similar_resume="name")
+    await state.set_state(AddEventFSM.similar_resolve)
+    await message.answer(
+        body,
+        parse_mode="HTML",
+        reply_markup=similar_events_keyboard(exact, locale),
+    )
+    return True
+
+
+async def _offer_similar_before_location(
+    message: Message,
+    state: FSMContext,
+    client: ApiClient,
+    locale: str,
+) -> bool:
+    data = await state.get_data()
+    ds = data.get("date_start")
+    if not ds:
+        return False
+    nm = data.get("name")
+    name_q = str(nm).strip() if nm else None
+    try:
+        res = await client.search_similar_events(
+            name=name_q if name_q else None,
+            date_str=str(ds)[:10],
+        )
+    except ApiError:
+        log.exception("search_similar date")
+        return False
+    exact = res.get("exact_matches") or []
+    date_m = res.get("date_matches") or []
+    combined = _combine_similar_events(exact, date_m)
+    if not combined:
+        return False
+    lines = _format_similar_event_lines(combined, locale)
+    body = (
+        f"{t(locale, 'similar_title_date')}\n\n{lines}\n\n"
+        f"{t(locale, 'similar_footer')}"
+    )
+    await state.update_data(similar_resume="loc")
+    await state.set_state(AddEventFSM.similar_resolve)
+    await message.answer(
+        body,
+        parse_mode="HTML",
+        reply_markup=similar_events_keyboard(combined, locale),
+    )
+    return True
+
+
+def _rebuild_adddup_keyboard(
+    data: dict, locale: str
+) -> tuple[list[str], InlineKeyboardMarkup]:
+    presets: list[str] = list(data.get("adddup_all_presets") or [])
+    selected: list[str] = list(data.get("selected_distances") or [])
+    opts = build_distance_options(presets, selected)
+    show_done = len(selected) > 0
+    return opts, distance_pick_keyboard(
+        "adddup",
+        opts,
+        locale,
+        show_done=show_done,
+        add_navigation=False,
+    )
+
+
+async def _start_adddup_distances(
+    message: Message,
+    state: FSMContext,
+    client: ApiClient,
+    locale: str,
+) -> None:
+    data = await state.get_data()
+    sport = str(data.get("adddup_sport") or "")
+    await state.update_data(selected_distances=[])
+    try:
+        res = await client.get_distances(sport)
+        labels = filter_preset_distances(list(res.get("distances") or []))
+    except ApiError:
+        log.exception("adddup get_distances")
+        labels = []
+    if labels:
+        merged = {**data, "adddup_all_presets": labels, "selected_distances": []}
+        opts, kb = _rebuild_adddup_keyboard(merged, locale)
+        await state.update_data(
+            adddup_all_presets=labels,
+            adddup_dist_options=opts,
+        )
+        await state.set_state(AddEventFSM.adddup_dist)
+        await message.answer(t(locale, "join_choose_dist"), reply_markup=kb)
+    else:
+        await state.set_state(AddEventFSM.adddup_custom)
+        await message.answer(
+            t(locale, "join_enter_dist"),
+            reply_markup=distance_custom_keyboard(
+                "adddup", locale, add_navigation=False
+            ),
+        )
+
+
+async def _finalize_adddup_join(
+    message: Message,
+    state: FSMContext,
+    client: ApiClient,
+    user,
+    locale: str,
+) -> None:
+    data = await state.get_data()
+    eid = str(data.get("adddup_event_id") or "")
+    title = str(data.get("adddup_event_name") or t(locale, "event_default"))
+    distances = list(
+        data.get("distances") or data.get("selected_distances") or []
+    )
+    if not distances:
+        await message.answer(t(locale, "need_one_distance"))
+        return
+    try:
+        p = await client.create_participant(
+            {
+                "display_name": (
+                    user.full_name or t(locale, "participant_default")
+                ).strip(),
+                "telegram_id": user.id,
+                "telegram_username": user.username,
+            }
+        )
+        await client.create_registration(
+            {
+                "event_id": eid,
+                "participant_id": p["id"],
+                "distances": distances,
+            }
+        )
+    except ApiError as e:
+        payload = e.payload if isinstance(e.payload, dict) else {}
+        blob = (str(e.detail) + str(payload)).lower()
+        if e.status == 400 and ("duplicate" in blob or "уже" in blob):
+            await message.answer(t(locale, "already_joined"))
+        else:
+            log.warning("adddup registration failed: %s", e.detail)
+            await message.answer(generic_api_error(locale))
+        await state.clear()
+        return
+    except Exception:
+        log.exception("adddup finalize")
+        await message.answer(generic_api_error(locale))
+        await state.clear()
+        return
+
+    await message.answer(
+        t(locale, "joined_ok", name=html.escape(title)),
+        parse_mode="HTML",
+    )
+    await state.clear()
 
 
 async def _fsm_tail(state: FSMContext) -> str:
@@ -581,12 +790,17 @@ async def add_sport(callback: CallbackQuery, state: FSMContext, bot: Bot, locale
 
 
 @router.message(StateFilter(AddEventFSM.name), F.text, F.chat.type == ChatType.PRIVATE)
-async def add_name(message: Message, state: FSMContext, bot: Bot, locale: str) -> None:
-    await state.update_data(name=message.text.strip())
+async def add_name(
+    message: Message, state: FSMContext, bot: Bot, client: ApiClient, locale: str
+) -> None:
+    name_clean = (message.text or "").strip()
+    await state.update_data(name=name_clean)
     data = await state.get_data()
     if data.get("wizard_edit"):
         await state.update_data(wizard_edit=False)
         await _goto_preview(bot, message.chat.id, message, state, locale)
+        return
+    if await _offer_similar_by_name(message, state, client, locale, name_clean):
         return
     await state.set_state(AddEventFSM.date_start)
     await message.answer(t(locale, "date_prompt_short"), reply_markup=nav_only_keyboard(locale))
@@ -665,7 +879,13 @@ async def add_year_ok_no(callback: CallbackQuery, state: FSMContext, locale: str
 
 
 @router.callback_query(StateFilter(AddEventFSM.multi_day), F.data.startswith("add:multi:"))
-async def add_multi(callback: CallbackQuery, state: FSMContext, bot: Bot, locale: str) -> None:
+async def add_multi(
+    callback: CallbackQuery,
+    state: FSMContext,
+    bot: Bot,
+    client: ApiClient,
+    locale: str,
+) -> None:
     if callback.message is None:
         await callback.answer()
         return
@@ -699,8 +919,10 @@ async def add_multi(callback: CallbackQuery, state: FSMContext, bot: Bot, locale
         )
     else:
         await state.update_data(multi_day_yes=False, date_end=None)
-        await state.set_state(AddEventFSM.location)
         await callback.message.edit_text(t(locale, "one_day_goto_loc"), reply_markup=None)
+        if await _offer_similar_before_location(callback.message, state, client, locale):
+            await callback.answer()
+            return
         await _prompt_location_answer(callback.message, state, locale)
     await callback.answer()
 
@@ -761,7 +983,9 @@ async def add_durconf_yes(
     callback: CallbackQuery,
     state: FSMContext,
     bot: Bot,
-    locale: str) -> None:
+    client: ApiClient,
+    locale: str,
+) -> None:
     if callback.message is None:
         await callback.answer()
         return
@@ -781,8 +1005,10 @@ async def add_durconf_yes(
         await _goto_preview(bot, callback.message.chat.id, callback.message, state, locale)
         await callback.answer()
         return
-    await state.set_state(AddEventFSM.location)
     await callback.message.edit_text(t(locale, "goto_location"), reply_markup=None)
+    if await _offer_similar_before_location(callback.message, state, client, locale):
+        await callback.answer()
+        return
     await _prompt_location_answer(callback.message, state, locale)
     await callback.answer()
 
@@ -836,7 +1062,9 @@ async def add_date_confirm_yes(
     callback: CallbackQuery,
     state: FSMContext,
     bot: Bot,
-    locale: str) -> None:
+    client: ApiClient,
+    locale: str,
+) -> None:
     if callback.message is None:
         await callback.answer()
         return
@@ -865,8 +1093,10 @@ async def add_date_confirm_yes(
         await _goto_preview(bot, callback.message.chat.id, callback.message, state, locale)
         await callback.answer()
         return
-    await state.set_state(AddEventFSM.location)
     await callback.message.edit_text(t(locale, "goto_location"), reply_markup=None)
+    if await _offer_similar_before_location(callback.message, state, client, locale):
+        await callback.answer()
+        return
     await _prompt_location_answer(callback.message, state, locale)
     await callback.answer()
 
@@ -891,6 +1121,150 @@ async def add_date_confirm_redo(callback: CallbackQuery, state: FSMContext, loca
     else:
         await callback.message.edit_text(t(locale, "start_with_add"))
     await callback.answer()
+
+
+@router.callback_query(
+    StateFilter(AddEventFSM.similar_resolve), F.data == "add:similar:new"
+)
+async def similar_resolve_new(
+    callback: CallbackQuery, state: FSMContext, locale: str
+) -> None:
+    if callback.message is None:
+        await callback.answer()
+        return
+    data = await state.get_data()
+    resume = str(data.get("similar_resume") or "")
+    await state.update_data(similar_resume=None)
+    if resume == "loc":
+        await _prompt_location_answer(callback.message, state, locale)
+    elif resume == "name":
+        await state.set_state(AddEventFSM.date_start)
+        await callback.message.edit_text(
+            t(locale, "date_prompt_short"), reply_markup=nav_only_keyboard(locale)
+        )
+    await callback.answer()
+
+
+@router.callback_query(
+    StateFilter(AddEventFSM.similar_resolve),
+    F.data.startswith("add:similar:join:"),
+)
+async def similar_resolve_join(
+    callback: CallbackQuery,
+    state: FSMContext,
+    client: ApiClient,
+    locale: str,
+) -> None:
+    if callback.message is None or callback.data is None:
+        await callback.answer()
+        return
+    eid = callback.data.rsplit(":", 1)[1]
+    try:
+        ev = await client.get_event(eid)
+    except ApiError:
+        await callback.answer(t(locale, "error_generic"), show_alert=True)
+        return
+    await state.update_data(
+        adddup_event_id=eid,
+        adddup_event_name=str(ev.get("name", t(locale, "event_default"))),
+        adddup_sport=str(ev.get("sport_type", "other")),
+        selected_distances=[],
+        similar_resume=None,
+    )
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await _start_adddup_distances(callback.message, state, client, locale)
+    await callback.answer()
+
+
+@router.callback_query(
+    StateFilter(AddEventFSM.adddup_dist),
+    F.data.startswith("adddup:dist:pick:"),
+)
+async def adddup_dist_pick(
+    callback: CallbackQuery, state: FSMContext, locale: str
+) -> None:
+    if callback.message is None or callback.data is None:
+        await callback.answer()
+        return
+    idx = int(callback.data.rsplit(":", 1)[1])
+    data = await state.get_data()
+    options: list[str] = list(data.get("adddup_dist_options") or [])
+    if idx < 0 or idx >= len(options):
+        await callback.answer(t(locale, "pick_error"), show_alert=True)
+        return
+    opt = options[idx]
+    cur = list(data.get("selected_distances") or [])
+
+    if opt == OTHER_SENTINEL:
+        await state.set_state(AddEventFSM.adddup_custom)
+        await callback.message.edit_text(
+            t(locale, "join_ok_type_dist"), reply_markup=None
+        )
+        await callback.message.answer(
+            t(locale, "comma_dist_hint"),
+            reply_markup=distance_custom_keyboard(
+                "adddup", locale, add_navigation=False
+            ),
+        )
+        await callback.answer()
+        return
+
+    cur.append(opt)
+    await state.update_data(selected_distances=cur)
+    merged = {**data, "selected_distances": cur}
+    opts, kb = _rebuild_adddup_keyboard(merged, locale)
+    await state.update_data(adddup_dist_options=opts)
+    await callback.message.edit_text(
+        t(locale, "join_dist_added_pick", name=html.escape(opt)),
+        reply_markup=kb,
+    )
+    await callback.answer()
+
+
+@router.callback_query(
+    StateFilter(AddEventFSM.adddup_dist, AddEventFSM.adddup_custom),
+    F.data == "adddup:dist:done",
+)
+async def adddup_dist_done(
+    callback: CallbackQuery, state: FSMContext, client: ApiClient, locale: str
+) -> None:
+    if callback.message is None or callback.from_user is None:
+        await callback.answer()
+        return
+    data = await state.get_data()
+    distances = list(data.get("selected_distances") or [])
+    if not distances:
+        await callback.answer(t(locale, "pick_distances_first"), show_alert=True)
+        return
+    await state.update_data(distances=distances)
+    await callback.answer()
+    await _finalize_adddup_join(
+        callback.message, state, client, callback.from_user, locale
+    )
+
+
+@router.message(
+    StateFilter(AddEventFSM.adddup_custom), F.text, F.chat.type == ChatType.PRIVATE
+)
+async def adddup_dist_text(
+    message: Message, state: FSMContext, locale: str
+) -> None:
+    raw = (message.text or "").strip()
+    if not raw:
+        return
+    parts = [p.strip() for p in raw.replace("\n", ",").split(",") if p.strip()]
+    data = await state.get_data()
+    cur = list(data.get("selected_distances") or [])
+    cur.extend(parts)
+    await state.update_data(selected_distances=cur)
+    merged = {**data, "selected_distances": cur}
+    opts, kb = _rebuild_adddup_keyboard(merged, locale)
+    await state.update_data(adddup_dist_options=opts)
+    await state.set_state(AddEventFSM.adddup_dist)
+    await message.answer(
+        t(locale, "join_dist_added_more"),
+        reply_markup=kb,
+    )
 
 
 @router.message(StateFilter(AddEventFSM.location), F.text, F.chat.type == ChatType.PRIVATE)
@@ -1177,10 +1551,15 @@ async def add_notes_text(message: Message, state: FSMContext, bot: Bot, locale: 
     await _goto_preview(bot, message.chat.id, message, state, locale)
 
 
-@router.callback_query(StateFilter(AddEventFSM.preview), F.data == "add:save")
-async def add_save(callback: CallbackQuery, state: FSMContext, client: ApiClient, locale: str) -> None:
+async def _add_save_commit(
+    callback: CallbackQuery,
+    state: FSMContext,
+    client: ApiClient,
+    locale: str,
+    *,
+    force_duplicate: bool = False,
+) -> None:
     if callback.from_user is None or callback.message is None:
-        await callback.answer()
         return
     data = await state.get_data()
     try:
@@ -1220,7 +1599,7 @@ async def add_save(callback: CallbackQuery, state: FSMContext, client: ApiClient
         tgid = data.get("target_group_id")
         if tgid:
             payload["group_id"] = str(tgid)
-        ev = await client.create_event(payload)
+        ev = await client.create_event(payload, force_duplicate=force_duplicate)
         eid = ev["id"]
         dists = list(data.get("distances") or [])
         for pid in ids:
@@ -1231,19 +1610,79 @@ async def add_save(callback: CallbackQuery, state: FSMContext, client: ApiClient
                     "distances": dists,
                 }
             )
-    except ApiError:
+    except ApiError as e:
+        pl = e.payload if isinstance(e.payload, dict) else {}
+        if (
+            not force_duplicate
+            and e.status == 409
+            and pl.get("detail") == "duplicate_event"
+        ):
+            eid409 = str(pl.get("existing_event_id") or "")
+            await callback.message.answer(
+                t(locale, "dup409_prompt"),
+                reply_markup=duplicate_save_keyboard(eid409, locale),
+            )
+            return
         log.exception("add_save API")
         await callback.message.answer(generic_api_error(locale))
-        await callback.answer()
         return
     except Exception:
         log.exception("add_save")
         await callback.message.answer(generic_api_error(locale))
-        await callback.answer()
         return
 
     await state.clear()
     await callback.message.edit_text(t(locale, "event_saved"))
+
+
+@router.callback_query(StateFilter(AddEventFSM.preview), F.data == "add:save")
+async def add_save(
+    callback: CallbackQuery, state: FSMContext, client: ApiClient, locale: str
+) -> None:
+    if callback.from_user is None or callback.message is None:
+        await callback.answer()
+        return
+    await _add_save_commit(
+        callback, state, client, locale, force_duplicate=False
+    )
+    await callback.answer()
+
+
+@router.callback_query(StateFilter(AddEventFSM.preview), F.data == "add:dup409:force")
+async def add_dup409_force(
+    callback: CallbackQuery, state: FSMContext, client: ApiClient, locale: str
+) -> None:
+    if callback.from_user is None or callback.message is None:
+        await callback.answer()
+        return
+    await _add_save_commit(
+        callback, state, client, locale, force_duplicate=True
+    )
+    await callback.answer()
+
+
+@router.callback_query(
+    StateFilter(AddEventFSM.preview), F.data.startswith("add:dup409:join:")
+)
+async def add_dup409_join(
+    callback: CallbackQuery, state: FSMContext, client: ApiClient, locale: str
+) -> None:
+    if callback.message is None or callback.data is None:
+        await callback.answer()
+        return
+    eid = callback.data.rsplit(":", 1)[1]
+    try:
+        ev = await client.get_event(eid)
+    except ApiError:
+        await callback.answer(t(locale, "error_generic"), show_alert=True)
+        return
+    await state.update_data(
+        adddup_event_id=eid,
+        adddup_event_name=str(ev.get("name", t(locale, "event_default"))),
+        adddup_sport=str(ev.get("sport_type", "other")),
+        selected_distances=[],
+    )
+    await _start_adddup_distances(callback.message, state, client, locale)
     await callback.answer()
 
 

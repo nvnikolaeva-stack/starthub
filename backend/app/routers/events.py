@@ -2,13 +2,20 @@ import uuid
 from datetime import date
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app import crud, models
 from app.database import get_db
 from app.ical_utils import build_ical_calendar
-from app.schemas import EventCreate, EventDetail, EventRead, EventUpdate
+from app.schemas import (
+    EventCreate,
+    EventDetail,
+    EventRead,
+    EventUpdate,
+    SimilarEventsResponse,
+)
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -43,6 +50,22 @@ def list_events(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
+@router.get("/search/similar", response_model=SimilarEventsResponse)
+def search_similar_events(
+    db: Annotated[Session, Depends(get_db)],
+    name: str | None = None,
+    event_date: date | None = Query(None, alias="date"),
+):
+    n = (name or "").strip() or None
+    if not n and not event_date:
+        return SimilarEventsResponse(exact_matches=[], date_matches=[])
+    ex, dm = crud.search_similar_events(db, name_substr=n, on_date=event_date)
+    return SimilarEventsResponse(
+        exact_matches=[crud.event_to_similar_match(e) for e in ex],
+        date_matches=[crud.event_to_similar_match(e) for e in dm],
+    )
+
+
 @router.get("/{event_id}", response_model=EventDetail)
 def get_event(event_id: uuid.UUID, db: Annotated[Session, Depends(get_db)]):
     ev = crud.get_event_with_registrations(db, event_id)
@@ -52,7 +75,25 @@ def get_event(event_id: uuid.UUID, db: Annotated[Session, Depends(get_db)]):
 
 
 @router.post("", response_model=EventRead, status_code=201)
-def create_event(payload: EventCreate, db: Annotated[Session, Depends(get_db)]):
+def create_event(
+    payload: EventCreate,
+    db: Annotated[Session, Depends(get_db)],
+    x_force_create: Annotated[str | None, Header()] = None,
+):
+    force = (x_force_create or "").lower() in ("true", "1", "yes")
+    if not force:
+        dup = crud.find_duplicate_event_by_name_date(
+            db, payload.name, payload.date_start
+        )
+        if dup:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "detail": "duplicate_event",
+                    "existing_event_id": str(dup.id),
+                    "message": "Старт с таким названием и датой уже существует",
+                },
+            )
     ev = crud.create_event(db, payload)
     return ev
 

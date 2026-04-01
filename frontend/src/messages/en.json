@@ -191,7 +191,22 @@
     "urlPlaceholderShort": "https://...",
     "requiredStar": "*",
     "moreSection": "Additional options",
-    "moreSectionHint": "Link and notes"
+    "moreSectionHint": "Link and notes",
+    "similarNameTitle": "Similar events",
+    "similarContinueCreate": "Not yours? Continue creating below",
+    "similarDateTitle": "There are already events on this date",
+    "similarPickExpand": "Yes, pick one →",
+    "similarPickCollapse": "Collapse",
+    "similarJoin": "Join →",
+    "similarExactTitle": "This event already exists!",
+    "similarJoinThis": "Join this event",
+    "similarCreateAnyway": "Create a new one anyway",
+    "joinModalTitle": "Sign up for the event",
+    "joinModalName": "Your name",
+    "joinModalDistance": "Distance",
+    "joinModalSubmit": "Sign up",
+    "duplicate409Hint": "This event is already on the calendar. Use Join in the hints above, or confirm duplicate creation in the warning.",
+    "joinSuccess": "You’re signed up for {name}! Redirecting…"
   },
   "stats": {
     "title": "Statistics",

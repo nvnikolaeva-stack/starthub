@@ -95,6 +95,23 @@ class EventDetail(EventRead):
     registrations: list[RegistrationWithParticipant]
 
 
+class SimilarEventMatch(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    date_start: date
+    location: str
+    sport_type: str
+    participants_count: int
+    participants: list[str]
+
+
+class SimilarEventsResponse(BaseModel):
+    exact_matches: list[SimilarEventMatch]
+    date_matches: list[SimilarEventMatch]
+
+
 class ParticipantBase(BaseModel):
     display_name: str = Field(..., min_length=1, max_length=512)
     telegram_id: int | None = None

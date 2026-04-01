@@ -7,7 +7,14 @@ from typing import Any, Awaitable, Callable
 
 from aiogram import BaseMiddleware, Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import BotCommand, TelegramObject
+from aiogram.types import (
+    BotCommand,
+    BotCommandScopeAllChatAdministrators,
+    BotCommandScopeAllGroupChats,
+    BotCommandScopeAllPrivateChats,
+    BotCommandScopeDefault,
+    TelegramObject,
+)
 
 from api_client import ApiClient
 from config import API_URL, BOT_TOKEN
@@ -99,28 +106,40 @@ async def _run() -> None:
     # /testreminder и /chatid — последними, чтобы команды точно доходили до хэндлера
     dp.include_router(chatid.router)
 
-    await bot.set_my_commands(
-        [
-            BotCommand(command="add", description="Добавить новый старт"),
-            BotCommand(command="list", description="Ближайшие старты"),
-            BotCommand(command="join", description="Присоединиться к старту"),
-            BotCommand(command="edit", description="Редактировать старт"),
-            BotCommand(command="delete", description="Удалить старт"),
-            BotCommand(command="result", description="Внести результат"),
-            BotCommand(command="stats", description="Статистика"),
-            BotCommand(command="ical", description="Скачать .ics файл"),
-            BotCommand(command="help", description="Справка / Help"),
-            BotCommand(command="lang", description="Язык / Language"),
-            BotCommand(
-                command="chatid",
-                description="Узнать ID чата (для напоминаний)",
-            ),
-            BotCommand(
-                command="testreminder",
-                description="Тест напоминаний (отладка)",
-            ),
-        ]
-    )
+    # Меню команд: в личке Telegram показывает /edit; в группах клиент всегда
+    # дописывает @bot к пунктам меню — это поведение клиента, его нельзя убрать API.
+    # Поэтому полный список только для private; в группах и для админов — пусто
+    # (команды всё равно работают, если набрать вручную, например /edit).
+    _commands: list[BotCommand] = [
+        BotCommand(command="add", description="Добавить новый старт"),
+        BotCommand(command="list", description="Ближайшие старты"),
+        BotCommand(command="join", description="Присоединиться к старту"),
+        BotCommand(command="edit", description="Редактировать старт"),
+        BotCommand(command="delete", description="Удалить старт"),
+        BotCommand(command="result", description="Внести результат"),
+        BotCommand(command="stats", description="Статистика"),
+        BotCommand(command="ical", description="Скачать .ics файл"),
+        BotCommand(command="help", description="Справка / Help"),
+        BotCommand(command="lang", description="Язык / Language"),
+        BotCommand(
+            command="chatid",
+            description="Узнать ID чата (для напоминаний)",
+        ),
+        BotCommand(
+            command="testreminder",
+            description="Тест напоминаний (отладка)",
+        ),
+    ]
+    for _scope in (
+        BotCommandScopeDefault(),
+        BotCommandScopeAllPrivateChats(),
+        BotCommandScopeAllGroupChats(),
+        BotCommandScopeAllChatAdministrators(),
+    ):
+        await bot.delete_my_commands(_scope)
+    await bot.set_my_commands(_commands, BotCommandScopeAllPrivateChats())
+    await bot.set_my_commands([], BotCommandScopeAllGroupChats())
+    await bot.set_my_commands([], BotCommandScopeAllChatAdministrators())
 
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())

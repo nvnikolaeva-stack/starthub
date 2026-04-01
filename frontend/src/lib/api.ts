@@ -5,6 +5,7 @@ import type {
   ParticipantDetail,
   ParticipantStats,
   Registration,
+  SimilarEventsResponse,
 } from "./types";
 
 const API_URL =
@@ -14,7 +15,8 @@ const API_URL =
 export class ApiError extends Error {
   constructor(
     message: string,
-    public status?: number
+    public status?: number,
+    public body?: unknown
   ) {
     super(message);
     this.name = "ApiError";
@@ -25,13 +27,25 @@ async function handle<T>(res: Response): Promise<T> {
   if (res.status === 204) return undefined as T;
   if (!res.ok) {
     let msg = "Сервер недоступен";
+    let parsed: unknown;
     try {
       const t = await res.text();
-      if (t) msg = t.slice(0, 200);
+      if (t) {
+        try {
+          parsed = JSON.parse(t) as unknown;
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            const o = parsed as Record<string, unknown>;
+            if (typeof o.message === "string") msg = o.message;
+            else if (typeof o.detail === "string") msg = o.detail;
+          }
+        } catch {
+          msg = t.slice(0, 200);
+        }
+      }
     } catch {
       /* ignore */
     }
-    throw new ApiError(msg, res.status);
+    throw new ApiError(msg, res.status, parsed);
   }
   if (res.headers.get("content-type")?.includes("application/json")) {
     return res.json() as Promise<T>;
@@ -81,14 +95,36 @@ export async function getEvent(id: string): Promise<Event> {
 }
 
 export async function createEvent(
-  data: Record<string, unknown>
+  data: Record<string, unknown>,
+  options?: { forceDuplicate?: boolean }
 ): Promise<Event> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (options?.forceDuplicate) headers["X-Force-Create"] = "true";
   const res = await fetch(`${API_URL}/api/v1/events`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(data),
   });
   return handle<Event>(res);
+}
+
+export async function searchSimilarEvents(params: {
+  name?: string;
+  date?: string;
+}): Promise<SimilarEventsResponse> {
+  const q = new URLSearchParams();
+  if (params.name?.trim()) q.set("name", params.name.trim());
+  if (params.date) q.set("date", params.date);
+  if (!q.toString()) {
+    return { exact_matches: [], date_matches: [] };
+  }
+  const res = await fetch(
+    `${API_URL}/api/v1/events/search/similar?${q}`,
+    { cache: "no-store" }
+  );
+  return handle<SimilarEventsResponse>(res);
 }
 
 export async function updateEvent(

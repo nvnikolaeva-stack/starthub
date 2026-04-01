@@ -119,6 +119,18 @@ RU: dict[str, str] = {
     "group_chat_fallback": "Чат {id}",
     "choose_sport": "Выбери вид спорта:",
     "enter_name": "Введи название старта:",
+    "similar_join_btn": "📌 {name} — присоед.",
+    "similar_create_new": "Нет, создать новый старт",
+    "similar_title_name": "📌 Похожие старты:",
+    "similar_title_date": "📅 На эту дату уже есть старты:",
+    "similar_footer": "Хотите присоединиться к одному из них?",
+    "similar_participants_n": "{n} уч.",
+    "dup409_join": "➡️ Присоединиться к этому старту",
+    "dup409_force": "Всё равно создать дубликат",
+    "dup409_prompt": (
+        "⚠️ Старт с таким названием и датой уже существует. "
+        "Присоединиться к существующему или создать дубликат?"
+    ),
     "current_value_prompt": "Текущее значение: {value}. Введи новое или нажми «Далее» чтобы оставить.",
     "enter_location": "Город / Локация:",
     "choose_distance": "Выбери дистанцию:",
@@ -410,6 +422,18 @@ EN: dict[str, str] = {
     "group_chat_fallback": "Chat {id}",
     "choose_sport": "Choose sport type:",
     "enter_name": "Enter event name:",
+    "similar_join_btn": "📌 {name} — join",
+    "similar_create_new": "No, create a new event",
+    "similar_title_name": "📌 Similar events:",
+    "similar_title_date": "📅 There are already events on this date:",
+    "similar_footer": "Do you want to join one of them?",
+    "similar_participants_n": "{n} ppl",
+    "dup409_join": "➡️ Join the existing event",
+    "dup409_force": "Create duplicate anyway",
+    "dup409_prompt": (
+        "⚠️ An event with this name and date already exists. "
+        "Join it or create a duplicate?"
+    ),
     "current_value_prompt": "Current: {value}. Enter a new one or tap “Next” to keep it.",
     "enter_location": "City / location:",
     "choose_distance": "Choose distance:",

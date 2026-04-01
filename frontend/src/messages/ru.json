@@ -191,7 +191,22 @@
     "urlPlaceholderShort": "https://...",
     "requiredStar": "*",
     "moreSection": "Дополнительно",
-    "moreSectionHint": "Ссылка и заметки"
+    "moreSectionHint": "Ссылка и заметки",
+    "similarNameTitle": "Похожие старты",
+    "similarContinueCreate": "Не нашли свой? Продолжайте создание ниже",
+    "similarDateTitle": "На эту дату уже есть старты",
+    "similarPickExpand": "Да, выбрать →",
+    "similarPickCollapse": "Свернуть",
+    "similarJoin": "Присоединиться →",
+    "similarExactTitle": "Такой старт уже существует!",
+    "similarJoinThis": "Присоединиться к этому старту",
+    "similarCreateAnyway": "Всё равно создать новый",
+    "joinModalTitle": "Запись на старт",
+    "joinModalName": "Ваше имя",
+    "joinModalDistance": "Дистанция",
+    "joinModalSubmit": "Записаться",
+    "duplicate409Hint": "Такой старт уже в календаре. Нажмите «Присоединиться» в подсказке выше или подтвердите создание дубликата в предупреждении.",
+    "joinSuccess": "Ты записан на {name}! Переход…"
   },
   "stats": {
     "title": "Статистика",
