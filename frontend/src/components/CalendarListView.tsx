@@ -123,11 +123,7 @@ export function CalendarListView({
   }, [rows]);
 
   if (rows.length === 0) {
-    return (
-      <p className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-sm text-[var(--color-text-muted)]">
-        {t("listEmpty")}
-      </p>
-    );
+    return null;
   }
 
   return (

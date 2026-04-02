@@ -15,6 +15,7 @@ import {
   listParticipants,
 } from "@/lib/api";
 import { SPORT_DOT } from "@/lib/sport";
+import { EmptyStateCard, ServerUnavailableCard } from "@/components/EmptyStateCard";
 import { SportIcon } from "@/components/SportIcon";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -46,6 +47,7 @@ const sportFill = (s: string) =>
 
 export function StatsPageContent() {
   const t = useTranslations("stats");
+  const tEmpty = useTranslations("empty");
   const tf = useTranslations("filters");
   const tc = useTranslations("common");
 
@@ -72,10 +74,39 @@ export function StatsPageContent() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [loadingPeople, setLoadingPeople] = useState(false);
   const [peopleErr, setPeopleErr] = useState<string | null>(null);
+  const [commReloadKey, setCommReloadKey] = useState(0);
+  const [peopleReloadKey, setPeopleReloadKey] = useState(0);
+
+  useEffect(() => {
+    if (!commErr) return;
+    const id = window.setTimeout(() => {
+      setCommReloadKey((k) => k + 1);
+    }, 30000);
+    return () => window.clearTimeout(id);
+  }, [commErr]);
+
+  useEffect(() => {
+    if (!peopleErr) return;
+    const id = window.setTimeout(() => {
+      setPeopleReloadKey((k) => k + 1);
+    }, 30000);
+    return () => window.clearTimeout(id);
+  }, [peopleErr]);
+
+  const retryComm = useCallback(() => {
+    setCommErr(null);
+    setCommReloadKey((k) => k + 1);
+  }, []);
+
+  const retryPeople = useCallback(() => {
+    setPeopleErr(null);
+    setPeopleReloadKey((k) => k + 1);
+  }, []);
 
   useEffect(() => {
     let c = false;
     setLoadingComm(true);
+    setCommErr(null);
     void getCommunityStats()
       .then((d) => {
         if (!c) {
@@ -95,7 +126,7 @@ export function StatsPageContent() {
     return () => {
       c = true;
     };
-  }, [t]);
+  }, [t, commReloadKey]);
 
   useEffect(() => {
     if (tab !== "people") return;
@@ -133,7 +164,7 @@ export function StatsPageContent() {
     return () => {
       c = true;
     };
-  }, [tab, tc]);
+  }, [tab, tc, peopleReloadKey]);
 
   const sortedParticipants = useMemo(() => {
     return [...participants].sort((a, b) => {
@@ -237,12 +268,23 @@ export function StatsPageContent() {
               {t("loading")}
             </p>
           )}
-          {commErr && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800">
-              {commErr}
-            </div>
-          )}
-          {community && !commErr && (
+          {!loadingComm && commErr ? (
+            <ServerUnavailableCard
+              title={tEmpty("serverError")}
+              description={tEmpty("serverErrorDesc")}
+              retryLabel={tEmpty("retry")}
+              onRetry={retryComm}
+            />
+          ) : null}
+          {community && !commErr && community.total_events === 0 && !loadingComm ? (
+            <EmptyStateCard
+              title={tEmpty("noStats")}
+              description={tEmpty("noStatsDesc")}
+              actionHref="/add"
+              actionLabel={tEmpty("addFirst")}
+            />
+          ) : null}
+          {community && !commErr && community.total_events > 0 ? (
             <div className="space-y-5">
               <section>
                 <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
@@ -361,7 +403,7 @@ export function StatsPageContent() {
                 )}
               </section>
             </div>
-          )}
+          ) : null}
         </>
       )}
 
@@ -372,11 +414,14 @@ export function StatsPageContent() {
               {t("loading")}
             </p>
           )}
-          {peopleErr && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800">
-              {peopleErr}
-            </div>
-          )}
+          {!loadingPeople && peopleErr ? (
+            <ServerUnavailableCard
+              title={tEmpty("serverError")}
+              description={tEmpty("serverErrorDesc")}
+              retryLabel={tEmpty("retry")}
+              onRetry={retryPeople}
+            />
+          ) : null}
           {!loadingPeople && !peopleErr && (
             <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
               {sortedParticipants.map((p) => {
@@ -519,8 +564,8 @@ export function StatsPageContent() {
                 );
               })}
               {sortedParticipants.length === 0 && (
-                <p className="col-span-full text-sm text-[var(--color-text-secondary)]">
-                  {t("noParticipantsYet")}
+                <p className="col-span-full text-center text-sm text-[var(--color-text-muted)]">
+                  {tEmpty("noParticipants")}
                 </p>
               )}
             </div>

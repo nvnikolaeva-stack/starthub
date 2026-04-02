@@ -16,16 +16,26 @@ import {
   defaultCalendarFilters,
   applyCalendarFilters,
   computeFetchRange,
+  isCalendarFiltersActive,
 } from "@/lib/calendarFilters";
 import { Calendar } from "@/components/Calendar";
 import { CalendarDetailPanel } from "@/components/CalendarDetailPanel";
 import { CalendarListView } from "@/components/CalendarListView";
 import { CalendarWeekendsView } from "@/components/CalendarWeekendsView";
+import { EmptyStateCard, ServerUnavailableCard } from "@/components/EmptyStateCard";
+import { YearView } from "@/components/YearView";
 import { EventQuickDrawer } from "@/components/EventQuickDrawer";
 import { EventCard } from "@/components/EventCard";
 import { FilterBar } from "@/components/FilterBar";
 import { useIsMobile } from "@/hooks/use-is-mobile";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
@@ -45,28 +55,50 @@ async function enrichWithDetails(events: Event[]): Promise<Event[]> {
   return events.map((e) => byId.get(e.id) || e);
 }
 
-export type CalendarMainView = "month" | "list" | "weekends";
+export type CalendarMainView = "month" | "list" | "weekends" | "year";
 
 export function HomeCalendar() {
   const t = useTranslations("calendar");
   const tCommon = useTranslations("common");
+  const tEmpty = useTranslations("empty");
   const locale = useLocale();
   const isMobile = useIsMobile();
   const [filters, setFilters] = useState(defaultCalendarFilters);
   const [viewMonth, setViewMonth] = useState(() => new Date());
+  const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [fetchedEvents, setFetchedEvents] = useState<Event[]>([]);
   const [distanceOptions, setDistanceOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [calView, setCalView] = useState<CalendarMainView>("month");
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [quickEvent, setQuickEvent] = useState<Event | null>(null);
+  const yearCacheRef = useRef<Map<number, Event[]>>(new Map());
+  const [yearBucket, setYearBucket] = useState<{
+    y: number;
+    events: Event[];
+  } | null>(null);
+  const [yearLoading, setYearLoading] = useState(false);
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
     if (window.matchMedia("(max-width: 767px)").matches) {
       setCalView("list");
     }
+  }, []);
+
+  useEffect(() => {
+    if (!error) return;
+    const id = window.setTimeout(() => {
+      setReloadKey((k) => k + 1);
+    }, 30000);
+    return () => window.clearTimeout(id);
+  }, [error]);
+
+  const retryFetch = useCallback(() => {
+    setError(null);
+    setReloadKey((k) => k + 1);
   }, []);
 
   const fetchRange = useMemo(
@@ -142,7 +174,48 @@ export function HomeCalendar() {
     return () => {
       cancelled = true;
     };
-  }, [fetchRange.date_from, fetchRange.date_to, filters.sport, tCommon]);
+  }, [fetchRange.date_from, fetchRange.date_to, filters.sport, reloadKey, tCommon]);
+
+  useEffect(() => {
+    if (calView !== "year") return;
+    const y = viewYear;
+    const cached = yearCacheRef.current.get(y);
+    if (cached) {
+      setYearBucket({ y, events: cached });
+      setYearLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setYearLoading(true);
+    setYearBucket(null);
+    (async () => {
+      try {
+        const raw = await getEvents({
+          date_from: `${y}-01-01`,
+          date_to: `${y}-12-31`,
+          upcoming: false,
+          limit: 500,
+          period: "all",
+        });
+        if (cancelled) return;
+        const merged = await enrichWithDetails(raw);
+        if (cancelled) return;
+        yearCacheRef.current.set(y, merged);
+        setYearBucket({ y, events: merged });
+      } catch (e) {
+        if (!cancelled) {
+          setError(
+            e instanceof ApiError ? e.message : tCommon("serverError")
+          );
+        }
+      } finally {
+        if (!cancelled) setYearLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [calView, viewYear, reloadKey, tCommon]);
 
   const locationOptions = useMemo(() => {
     const s = new Set<string>();
@@ -158,6 +231,24 @@ export function HomeCalendar() {
         weekendsOnly: fetchRange.weekendsOnly,
       }),
     [fetchedEvents, filters, fetchRange.weekendsOnly]
+  );
+
+  const filtersActive = useMemo(
+    () => isCalendarFiltersActive(filters),
+    [filters]
+  );
+
+  const yearRawEvents = useMemo(() => {
+    if (!yearBucket || yearBucket.y !== viewYear) return [];
+    return yearBucket.events;
+  }, [yearBucket, viewYear]);
+
+  const yearDisplayEvents = useMemo(
+    () =>
+      applyCalendarFilters(yearRawEvents, filters, {
+        weekendsOnly: false,
+      }),
+    [yearRawEvents, filters]
   );
 
   const todayKey = useMemo(() => dayKey(new Date()), []);
@@ -206,6 +297,30 @@ export function HomeCalendar() {
     setViewMonth(new Date());
   }, []);
 
+  const showFilterEmpty =
+    !loading &&
+    !error &&
+    displayEvents.length === 0 &&
+    filtersActive;
+  const showTrueEmpty =
+    !loading &&
+    !error &&
+    displayEvents.length === 0 &&
+    !filtersActive;
+
+  const yearShowFilterEmpty =
+    calView === "year" &&
+    !yearLoading &&
+    !error &&
+    yearDisplayEvents.length === 0 &&
+    filtersActive;
+  const yearShowTrueEmpty =
+    calView === "year" &&
+    !yearLoading &&
+    !error &&
+    yearDisplayEvents.length === 0 &&
+    !filtersActive;
+
   const viewTabs = (
     <div className="mb-4 flex flex-wrap gap-1 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-tinted)] p-1">
       {(
@@ -213,6 +328,7 @@ export function HomeCalendar() {
           ["month", t("viewMonth")] as const,
           ["list", t("viewList")] as const,
           ["weekends", t("viewWeekends")] as const,
+          ["year", t("viewYear")] as const,
         ] as const
       ).map(([id, label]) => (
         <button
@@ -220,7 +336,12 @@ export function HomeCalendar() {
           type="button"
           onClick={() => {
             setCalView(id);
-            if (id !== "month") setSelectedDay(null);
+            if (id === "year") {
+              setViewYear(viewMonth.getFullYear());
+              setSelectedDay(null);
+            } else if (id !== "month") {
+              setSelectedDay(null);
+            }
           }}
           className={cn(
             "min-h-11 rounded-[var(--radius-sm)] px-3 py-2 text-sm transition-colors",
@@ -241,12 +362,13 @@ export function HomeCalendar() {
         {t("title")}
       </h1>
       {error && (
-        <div
-          className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
-          role="alert"
-        >
-          {error}
-        </div>
+        <ServerUnavailableCard
+          className="mb-4"
+          title={tEmpty("serverError")}
+          description={tEmpty("serverErrorDesc")}
+          retryLabel={tEmpty("retry")}
+          onRetry={retryFetch}
+        />
       )}
       <FilterBar
         filters={filters}
@@ -264,10 +386,53 @@ export function HomeCalendar() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start">
         <div className="lg:col-span-8">
-          {loading ? (
+          {calView === "year" ? (
+            yearLoading ? (
+              <p className="text-sm text-[var(--color-text-muted)]">
+                {t("loading")}
+              </p>
+            ) : yearShowFilterEmpty ? (
+              <EmptyStateCard
+                title={tEmpty("noFilterResults")}
+                onAction={onResetAll}
+                actionButtonLabel={tEmpty("resetFilters")}
+              />
+            ) : yearShowTrueEmpty ? (
+              <EmptyStateCard
+                title={tEmpty("noEvents")}
+                description={tEmpty("noEventsDesc")}
+                actionHref="/add"
+                actionLabel={tEmpty("addFirst")}
+              />
+            ) : (
+              <YearView
+                year={viewYear}
+                events={yearDisplayEvents}
+                onYearChange={setViewYear}
+                onDayWithEventsClick={(d) => {
+                  setCalView("month");
+                  setViewMonth(new Date(d.getFullYear(), d.getMonth(), 1));
+                  setSelectedDay(d);
+                }}
+              />
+            )
+          ) : loading ? (
             <p className="text-sm text-[var(--color-text-muted)]">
               {t("loading")}
             </p>
+          ) : showFilterEmpty ? (
+            <EmptyStateCard
+              title={tEmpty("noFilterResults")}
+              onAction={onResetAll}
+              actionButtonLabel={tEmpty("resetFilters")}
+            />
+          ) : showTrueEmpty ? (
+            <EmptyStateCard
+              title={tEmpty("noEvents")}
+              description={tEmpty("noEventsDesc")}
+              actionHref="/add"
+              actionLabel={tEmpty("addFirst")}
+            />
           ) : calView === "month" ? (
             <>
               <Calendar

@@ -6,6 +6,7 @@ import { EventCard } from "@/components/EventCard";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { EmptyStateCard } from "@/components/EmptyStateCard";
 
 export function CalendarDetailPanel({
   selectedDay,
@@ -20,6 +21,7 @@ export function CalendarDetailPanel({
 }) {
   const locale = useLocale();
   const t = useTranslations("calendar");
+  const tEmpty = useTranslations("empty");
 
   const addHref = selectedDay
     ? `/add?date=${dayKey(selectedDay)}`
@@ -38,19 +40,15 @@ export function CalendarDetailPanel({
             {formatDayMonthYearLocalized(selectedDay, locale)}
           </h2>
           {dayEvents.length === 0 ? (
-            <div className="flex flex-1 flex-col gap-3">
-              <p className="text-sm text-[var(--color-text-muted)]">
-                {t("detailEmptyDay")}
-              </p>
-              <Link
-                href={addHref}
-                className="btn-accent inline-flex min-h-11 w-fit items-center justify-center rounded-[var(--radius-full)] px-4 text-sm no-underline"
-              >
-                {t("detailAddOnDate", {
-                  date: formatDayMonthYearLocalized(selectedDay, locale),
-                })}
-              </Link>
-            </div>
+            <EmptyStateCard
+              className="border-none bg-transparent py-6"
+              title={tEmpty("noEventsOnDateDetailed", {
+                date: formatDayMonthYearLocalized(selectedDay, locale),
+              })}
+              description={tEmpty("addOnDatePrompt")}
+              actionHref={addHref}
+              actionLabel={tEmpty("addFirst")}
+            />
           ) : (
             <ul className="flex flex-col gap-2">
               {dayEvents.map((ev) => (
@@ -71,9 +69,13 @@ export function CalendarDetailPanel({
             {t("detailUpcomingTitle")}
           </h2>
           {upcomingEvents.length === 0 ? (
-            <p className="text-sm text-[var(--color-text-muted)]">
-              {t("noEventsInSelection")}
-            </p>
+            <EmptyStateCard
+              className="border-none bg-transparent py-6"
+              title={tEmpty("noEvents")}
+              description={tEmpty("noEventsDesc")}
+              actionHref="/add"
+              actionLabel={tEmpty("addFirst")}
+            />
           ) : (
             <ul className="flex flex-col gap-2">
               {upcomingEvents.slice(0, 5).map((ev) => (

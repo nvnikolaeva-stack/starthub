@@ -33,6 +33,10 @@
     "viewMonth": "Month",
     "viewList": "List",
     "viewWeekends": "Weekends",
+    "viewYear": "Year",
+    "prevYearAria": "Previous year",
+    "nextYearAria": "Next year",
+    "weekendsNoEvents": "No events",
     "detailEmptyDay": "No events on this date",
     "detailAddOnDate": "Add event on {date}",
     "detailUpcomingTitle": "Upcoming events",
@@ -207,6 +211,22 @@
     "joinModalSubmit": "Sign up",
     "duplicate409Hint": "This event is already on the calendar. Use Join in the hints above, or confirm duplicate creation in the warning.",
     "joinSuccess": "You’re signed up for {name}! Redirecting…"
+  },
+  "empty": {
+    "noEvents": "No events yet",
+    "noEventsDesc": "Add your first event to see it on the calendar.",
+    "addFirst": "+ Add event",
+    "noFilterResults": "Nothing matches the current filters.",
+    "resetFilters": "Reset filters",
+    "noStats": "Statistics will appear after your first events",
+    "noStatsDesc": "Add an event and log a result to see your stats.",
+    "noParticipants": "No participants yet.",
+    "noEventsOnDate": "No events on this date.",
+    "noEventsOnDateDetailed": "No events on {date}.",
+    "addOnDatePrompt": "Add an event?",
+    "serverError": "Couldn’t load data.",
+    "serverErrorDesc": "The server is temporarily unavailable.",
+    "retry": "Try again"
   },
   "stats": {
     "title": "Statistics",

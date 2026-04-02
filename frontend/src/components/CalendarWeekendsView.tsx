@@ -4,13 +4,14 @@ import type { Event } from "@/lib/types";
 import {
   dayKey,
   eventOverlapsDay,
-  formatDayMonthYearLocalized,
+  formatCompactDayMonthLocalized,
   weekdayShortLocalized,
 } from "@/lib/dates";
 import { SportIcon } from "@/components/SportIcon";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo } from "react";
+import { cn } from "@/lib/utils";
 
 function nextSaturdayFrom(d: Date): Date {
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -24,27 +25,35 @@ function nextSaturdayFrom(d: Date): Date {
   return x;
 }
 
-function pairsWithEvents(
-  events: Event[],
-  from: Date,
-  pairCount: number
-): Array<{ sat: Date; sun: Date; events: Event[] }> {
-  const out: Array<{ sat: Date; sun: Date; events: Event[] }> = [];
+function nextEightWeekendPairs(from: Date): Array<{ sat: Date; sun: Date }> {
+  const out: Array<{ sat: Date; sun: Date }> = [];
   let sat = nextSaturdayFrom(from);
-  let guard = 0;
-  while (out.length < pairCount && guard < 104) {
+  for (let i = 0; i < 8; i++) {
     const sun = new Date(sat);
     sun.setDate(sun.getDate() + 1);
-    const evs = events.filter(
-      (e) => eventOverlapsDay(e, sat) || eventOverlapsDay(e, sun)
-    );
-    if (evs.length) {
-      out.push({ sat: new Date(sat), sun: new Date(sun), events: evs });
-    }
+    out.push({ sat: new Date(sat), sun: new Date(sun) });
     sat.setDate(sat.getDate() + 7);
-    guard++;
   }
   return out;
+}
+
+function formatPairHeading(
+  sat: Date,
+  sun: Date,
+  locale: string
+): string {
+  const ws = weekdayShortLocalized(sat, locale);
+  const wu = weekdayShortLocalized(sun, locale);
+  const ds = `${ws} ${sat.getDate()}`;
+  const de = `${wu} ${sun.getDate()}`;
+  const mon = new Intl.DateTimeFormat(locale === "en" ? "en-GB" : "ru-RU", {
+    month: "long",
+  }).format(sun);
+  return `${ds} — ${de} ${mon}`;
+}
+
+function participantCount(ev: Event): number {
+  return ev.registrations?.length ?? 0;
 }
 
 export function CalendarWeekendsView({
@@ -60,56 +69,84 @@ export function CalendarWeekendsView({
 }) {
   const locale = useLocale();
   const t = useTranslations("calendar");
+  const te = useTranslations("event");
 
-  const pairs = useMemo(() => {
-    const base = fromDate;
-    const filtered = showPast
+  const baseEvents = useMemo(() => {
+    return showPast
       ? events
       : events.filter(
           (e) => (e.date_end || e.date_start).slice(0, 10) >= todayKey
         );
-    return pairsWithEvents(filtered, base, 6);
-  }, [events, showPast, todayKey, fromDate]);
+  }, [events, showPast, todayKey]);
 
-  if (pairs.length === 0) {
-    return (
-      <p className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-sm text-[var(--color-text-muted)]">
-        {t("weekendsEmpty")}
-      </p>
-    );
-  }
+  const pairs = useMemo(
+    () => nextEightWeekendPairs(fromDate),
+    [fromDate]
+  );
+
+  const rows = useMemo(() => {
+    return pairs.map(({ sat, sun }) => {
+      const evs = baseEvents.filter(
+        (e) => eventOverlapsDay(e, sat) || eventOverlapsDay(e, sun)
+      );
+      return { sat, sun, events: evs };
+    });
+  }, [pairs, baseEvents]);
 
   return (
-    <div className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-sm)]">
-      {pairs.map(({ sat, sun, events: evs }) => (
-        <section
-          key={`${dayKey(sat)}-${dayKey(sun)}`}
-          className="border-b border-[var(--color-border)] pb-4 last:border-0 last:pb-0"
-        >
-          <h3 className="mb-2 text-sm font-semibold text-[var(--color-text)]">
-            {formatDayMonthYearLocalized(sat, locale)} ({weekdayShortLocalized(sat, locale)}) —{" "}
-            {formatDayMonthYearLocalized(sun, locale)} ({weekdayShortLocalized(sun, locale)})
-          </h3>
-          <ul className="flex flex-col gap-2">
-            {evs.map((ev) => (
-              <li key={`${dayKey(sat)}-${ev.id}`}>
-                <Link
-                  href={`/event/${ev.id}`}
-                  className="card flex items-center gap-2 p-3 no-underline transition-colors hover:bg-[var(--color-surface-hover)]"
-                >
-                  <SportIcon sport={ev.sport_type} size={18} className="shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{ev.name}</p>
-                    <p className="truncate text-xs text-[var(--color-text-muted)]">
-                      {ev.location}
-                    </p>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+    <div className="space-y-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-sm)]">
+      {rows.map(({ sat, sun, events: evs }) => {
+        const k = dayKey(sat);
+        const currentWeekend =
+          todayKey >= dayKey(sat) && todayKey <= dayKey(sun);
+        return (
+          <section
+            key={k}
+            className={cn(
+              "border-b border-[var(--color-border)] px-4 py-4 last:border-b-0",
+              currentWeekend &&
+                "bg-[rgba(var(--color-accent-rgb),0.08)] ring-2 ring-inset ring-[var(--color-primary)]"
+            )}
+          >
+            <h3 className="mb-2 text-sm font-semibold text-[var(--color-text)]">
+              {formatPairHeading(sat, sun, locale)}
+            </h3>
+            {evs.length === 0 ? (
+              <p className="text-xs text-[var(--color-text-muted)]">
+                {t("weekendsNoEvents")}
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {evs.map((ev) => (
+                  <li key={`${k}-${ev.id}`}>
+                    <Link
+                      href={`/event/${ev.id}`}
+                      className="card flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-tinted)] p-3 no-underline transition-colors hover:bg-[var(--color-surface-hover)]"
+                    >
+                      <SportIcon
+                        sport={ev.sport_type}
+                        size={18}
+                        className="shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-[var(--color-text)]">
+                          {ev.name}
+                        </p>
+                        <p className="truncate text-xs text-[var(--color-text-muted)]">
+                          {ev.location} •{" "}
+                          {te("participantsCountInline", {
+                            count: participantCount(ev),
+                          })}
+                        </p>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }

@@ -99,8 +99,17 @@ export function Calendar({
         </Button>
       </div>
       <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-[var(--color-text-muted)] sm:text-xs">
-        {weekHdr.map((w) => (
-          <div key={w}>{w}</div>
+        {weekHdr.map((w, i) => (
+          <div
+            key={w}
+            className={
+              i >= 5
+                ? "font-bold text-[var(--color-primary)]"
+                : undefined
+            }
+          >
+            {w}
+          </div>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-1 sm:gap-1.5">

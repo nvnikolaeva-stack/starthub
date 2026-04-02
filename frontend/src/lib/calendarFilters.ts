@@ -34,6 +34,20 @@ export const defaultCalendarFilters = (): CalendarFiltersState => ({
   location: "",
 });
 
+/** Есть ли отличия от состояния по умолчанию (для empty state «сбросить фильтры»). */
+export function isCalendarFiltersActive(f: CalendarFiltersState): boolean {
+  const d = defaultCalendarFilters();
+  return (
+    f.search !== d.search ||
+    f.sport !== d.sport ||
+    f.periodPreset !== d.periodPreset ||
+    f.customDateFrom !== d.customDateFrom ||
+    f.customDateTo !== d.customDateTo ||
+    f.distance !== d.distance ||
+    f.location !== d.location
+  );
+}
+
 export function eventTouchesWeekend(ev: Event): boolean {
   const s = parseISODate(ev.date_start.slice(0, 10));
   const e = ev.date_end

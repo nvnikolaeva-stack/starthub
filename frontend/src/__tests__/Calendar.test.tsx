@@ -132,7 +132,7 @@ describe("Calendar", () => {
     expect(cell.querySelector('[data-testid^="calendar-event-pill"]')).toBeNull();
   });
 
-  test("9: выходные с фоном surface-tinted (суббота)", () => {
+  test("9: выходные с акцентным фоном (суббота)", () => {
     const view = new Date(2026, 2, 1);
     renderCalendar(
       <Calendar
@@ -145,7 +145,7 @@ describe("Calendar", () => {
       />
     );
     const sat = screen.getByTestId("calendar-cell-2026-03-07");
-    expect(sat.className).toMatch(/surface-tinted/);
+    expect(sat.className).toMatch(/color-accent-rgb/);
   });
 
   test("10: смена месяца по стрелке", async () => {
