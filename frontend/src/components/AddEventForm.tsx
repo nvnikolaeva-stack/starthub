@@ -1,6 +1,11 @@
 "use client";
 
-import type { Event, SimilarEventMatch, SportType } from "@/lib/types";
+import type {
+  Event,
+  Participant,
+  SimilarEventMatch,
+  SportType,
+} from "@/lib/types";
 import {
   ApiError,
   createEvent,
@@ -130,6 +135,9 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
   const [url, setUrl] = useState("");
   const [notes, setNotes] = useState("");
   const [authorName, setAuthorName] = useState("");
+  const [authorParticipantId, setAuthorParticipantId] = useState<string | null>(
+    null
+  );
   const [authorDistance, setAuthorDistance] = useState("");
   const [friends, setFriends] = useState<FriendEntry[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -347,6 +355,17 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
     setFreeDistDraft("");
   }
 
+  const handleAuthorNameInput = useCallback((v: string) => {
+    setAuthorName(v);
+    setAuthorParticipantId(null);
+  }, []);
+
+  const onPickParticipantAsAuthor = useCallback((p: Participant) => {
+    setAuthorName(p.display_name);
+    setAuthorParticipantId(p.id);
+    setFriends((prev) => prev.filter((f) => f.participantId !== p.id));
+  }, []);
+
   const clearForm = () => {
     setSportType("running");
     setName("");
@@ -362,6 +381,7 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
     setUrl("");
     setNotes("");
     setAuthorName("");
+    setAuthorParticipantId(null);
     setAuthorDistance("");
     setFriends([]);
     setErrors({});
@@ -458,24 +478,53 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
     if (!validate()) return;
     setSaving(true);
     try {
-      const authorP = await createParticipant({
-        display_name: authorName.trim(),
-      });
+      const authorNorm = authorName.trim().toLowerCase();
+      let authorId: string;
+      if (authorParticipantId) {
+        authorId = authorParticipantId;
+      } else {
+        const matchFriend = friends.find(
+          (f) =>
+            f.source === "api" &&
+            f.participantId &&
+            f.displayName.trim().toLowerCase() === authorNorm
+        );
+        if (matchFriend?.participantId) {
+          authorId = matchFriend.participantId;
+        } else {
+          const ap = await createParticipant({
+            display_name: authorName.trim(),
+          });
+          authorId = ap.id;
+        }
+      }
 
-      const friendIds: { id: string; distance: string }[] = [];
+      const usedIds = new Set<string>([authorId]);
+      const usedNames = new Set<string>([authorNorm]);
+
+      const friendRegs: { id: string; distance: string }[] = [];
       for (const f of friends) {
         if (f.source === "api" && f.participantId) {
-          friendIds.push({
+          if (usedIds.has(f.participantId)) continue;
+          const fn = f.displayName.trim().toLowerCase();
+          if (usedNames.has(fn)) continue;
+          usedIds.add(f.participantId);
+          usedNames.add(fn);
+          friendRegs.push({
             id: f.participantId,
-            distance: f.distance || selectedDistances[0],
+            distance: f.distance || selectedDistances[0] || "",
           });
         } else {
+          const fn = f.displayName.trim().toLowerCase();
+          if (usedNames.has(fn)) continue;
+          usedNames.add(fn);
           const pr = await createParticipant({
             display_name: f.displayName.trim(),
           });
-          friendIds.push({
+          usedIds.add(pr.id);
+          friendRegs.push({
             id: pr.id,
-            distance: f.distance || selectedDistances[0],
+            distance: f.distance || selectedDistances[0] || "",
           });
         }
       }
@@ -500,11 +549,11 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
           : selectedDistances[0];
       await createRegistration({
         event_id: saved.id,
-        participant_id: authorP.id,
+        participant_id: authorId,
         distances: [adist],
       });
 
-      for (const row of friendIds) {
+      for (const row of friendRegs) {
         await createRegistration({
           event_id: saved.id,
           participant_id: row.id,
@@ -1008,7 +1057,9 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
           <ParticipantSelector
             selectedDistances={selectedDistances}
             authorName={authorName}
-            onAuthorNameChange={setAuthorName}
+            onAuthorNameChange={handleAuthorNameInput}
+            authorParticipantId={authorParticipantId}
+            onPickParticipantAsAuthor={onPickParticipantAsAuthor}
             authorDistance={authorDistance}
             onAuthorDistanceChange={setAuthorDistance}
             friends={friends}
@@ -1097,16 +1148,21 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
             </>
           )}
 
-          <div className="hidden flex-col gap-2 lg:flex lg:flex-row">
+          <div className="hidden items-center justify-between gap-4 lg:flex">
+            <Button
+              type="button"
+              variant="ghost"
+              className="min-h-11 text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
+              onClick={clearForm}
+            >
+              {t("clear")}
+            </Button>
             <Button
               type="submit"
               disabled={saving || success}
-              className="bg-emerald-600 text-white hover:bg-emerald-700"
+              className="min-h-11 bg-[var(--color-accent)] text-[var(--color-accent-text)] hover:bg-[var(--color-accent-hover)]"
             >
               ✅ {t("save")}
-            </Button>
-            <Button type="button" variant="outline" onClick={clearForm}>
-              🔄 {t("clear")}
             </Button>
           </div>
         </form>
@@ -1126,26 +1182,26 @@ export function AddEventForm(props: { initialDate?: string } = {}) {
 
       {isMobile ? (
         <div
-          className="fixed inset-x-0 bottom-0 z-40 flex gap-2 border-t border-[var(--color-border)] bg-[var(--color-surface)]/95 px-4 py-3 backdrop-blur lg:hidden"
+          className="fixed inset-x-0 bottom-0 z-40 flex justify-between gap-3 border-t border-[var(--color-border)] bg-[var(--color-surface)]/95 px-4 py-3 backdrop-blur lg:hidden"
           style={{
             paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))",
           }}
         >
           <Button
+            type="button"
+            variant="ghost"
+            className="min-h-11 shrink-0 text-[var(--color-text-secondary)]"
+            onClick={clearForm}
+          >
+            {t("clear")}
+          </Button>
+          <Button
             type="submit"
             form="add-event-form"
             disabled={saving || success}
-            className="flex-1 bg-emerald-600 text-white hover:bg-emerald-700"
+            className="min-h-11 min-w-[10rem] flex-1 bg-[var(--color-accent)] text-[var(--color-accent-text)] hover:bg-[var(--color-accent-hover)] sm:max-w-md sm:flex-none"
           >
             ✅ {t("save")}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="min-w-0 flex-1"
-            onClick={clearForm}
-          >
-            🔄 {t("clear")}
           </Button>
         </div>
       ) : null}

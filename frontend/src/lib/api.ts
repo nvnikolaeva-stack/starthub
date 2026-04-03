@@ -53,6 +53,7 @@ async function handle<T>(res: Response): Promise<T> {
   return res.text() as Promise<T>;
 }
 
+/** Lists events. Does not send group_id / for_telegram_id (web shows all public events). */
 export async function getEvents(params?: {
   sport_type?: string;
   upcoming?: boolean;
@@ -215,6 +216,8 @@ export async function getCommunityStats(): Promise<CommunityStats> {
 export async function getEventIcal(id: string): Promise<Blob> {
   const res = await fetch(`${API_URL}/api/v1/events/${id}/ical`, {
     cache: "no-store",
+    method: "GET",
+    headers: { Accept: "text/calendar,*/*" },
   });
   if (!res.ok) throw new ApiError("Не удалось скачать .ics", res.status);
   return res.blob();

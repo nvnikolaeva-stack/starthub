@@ -18,7 +18,7 @@ router = Router(name="list_events")
 log = logging.getLogger(__name__)
 
 DEFAULT_PERIOD = "all"
-DEFAULT_LIMIT = 5
+DEFAULT_LIMIT = 10
 
 
 async def _event_block(client: ApiClient, ev: dict, locale: str) -> str:
@@ -99,8 +99,9 @@ def _params(period: str, sport: str | None, upcoming: bool = True) -> dict:
     p: dict = {
         "upcoming": str(upcoming).lower(),
         "limit": DEFAULT_LIMIT,
-        "period": period,
     }
+    if period != "all":
+        p["period"] = period
     if sport and sport != "all":
         p["sport_type"] = sport
     return p

@@ -32,6 +32,20 @@ const SPORT_OPTIONS: SportType[] = [
   "other",
 ];
 
+function eventExternalUrl(raw: string): string {
+  const u = raw.trim();
+  if (!u) return "";
+  return /^https?:\/\//i.test(u) ? u : `https://${u}`;
+}
+
+function registrationHostname(raw: string): string {
+  try {
+    return new URL(eventExternalUrl(raw)).hostname;
+  } catch {
+    return raw.replace(/^https?:\/\//i, "").split("/")[0] || raw;
+  }
+}
+
 function regTelegram(r: Registration): string | null {
   if (r.participant_telegram_username)
     return `@${r.participant_telegram_username}`;
@@ -130,12 +144,15 @@ export function EventCardFull({ eventId }: { eventId: string }) {
     if (!event) return;
     try {
       const blob = await getEventIcal(event.id);
-      const url = URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = "event.ics";
+      a.rel = "noopener";
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
     } catch (e) {
       setErrMsg(
         e instanceof ApiError ? e.message : t("downloadCalendarFailed")
@@ -288,14 +305,17 @@ export function EventCardFull({ eventId }: { eventId: string }) {
             ) : null}
             {event.url ? (
               <li>
-                <span aria-hidden>🔗 </span>
                 <a
-                  href={event.url.startsWith("http") ? event.url : `https://${event.url}`}
+                  href={eventExternalUrl(event.url)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sky-700 underline"
+                  className="inline-flex items-center gap-1 break-all text-sky-700 underline hover:text-sky-900"
                 >
-                  {event.url.replace(/^https?:\/\//, "")}
+                  <span aria-hidden>🔗</span>
+                  <span>
+                    {t("registrationLink")}: {registrationHostname(event.url)}{" "}
+                    →
+                  </span>
                 </a>
               </li>
             ) : null}
@@ -344,19 +364,34 @@ export function EventCardFull({ eventId }: { eventId: string }) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <Button type="button" variant="outline" onClick={downloadIcs}>
+          <div className="mt-4 flex w-full flex-col flex-wrap gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-[44px] w-full min-w-0 whitespace-normal break-words sm:flex-1 sm:min-w-[140px] sm:max-w-full"
+              onClick={() => void downloadIcs()}
+            >
               📅 {t("addToCalendar")}
             </Button>
-            <Button type="button" variant="outline" onClick={() => setEditOpen(true)}>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-[44px] w-full min-w-0 whitespace-normal break-words sm:flex-1 sm:min-w-[140px] sm:max-w-full"
+              onClick={() => setEditOpen(true)}
+            >
               ✏️ {t("edit")}
             </Button>
-            <Button type="button" onClick={() => setJoinOpen(true)}>
+            <Button
+              type="button"
+              className="min-h-[44px] w-full min-w-0 whitespace-normal break-words sm:flex-1 sm:min-w-[140px] sm:max-w-full"
+              onClick={() => setJoinOpen(true)}
+            >
               👥 {t("joinEvent")}
             </Button>
             <Button
               type="button"
               variant="destructive"
+              className="min-h-[44px] w-full min-w-0 whitespace-normal break-words sm:flex-1 sm:min-w-[140px] sm:max-w-full"
               onClick={() => setDelOpen(true)}
             >
               🗑 {t("delete")}

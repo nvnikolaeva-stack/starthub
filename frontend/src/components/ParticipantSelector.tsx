@@ -22,6 +22,8 @@ type Props = {
   selectedDistances: string[];
   authorName: string;
   onAuthorNameChange: (v: string) => void;
+  authorParticipantId: string | null;
+  onPickParticipantAsAuthor: (p: Participant) => void;
   authorDistance: string;
   onAuthorDistanceChange: (v: string) => void;
   friends: FriendEntry[];
@@ -33,6 +35,8 @@ export function ParticipantSelector({
   selectedDistances,
   authorName,
   onAuthorNameChange,
+  authorParticipantId,
+  onPickParticipantAsAuthor,
   authorDistance,
   onAuthorDistanceChange,
   friends,
@@ -79,6 +83,18 @@ export function ParticipantSelector({
     if (!p) return;
     if (friends.some((f) => f.participantId === pid)) {
       flashDup(tp("duplicate"));
+      setApiSelect("");
+      return;
+    }
+    const pNorm = p.display_name.trim().toLowerCase();
+    const authorNorm = authorName.trim().toLowerCase();
+    if (!authorNorm) {
+      onPickParticipantAsAuthor(p);
+      setApiSelect("");
+      return;
+    }
+    if (authorParticipantId === pid || pNorm === authorNorm) {
+      onPickParticipantAsAuthor(p);
       setApiSelect("");
       return;
     }

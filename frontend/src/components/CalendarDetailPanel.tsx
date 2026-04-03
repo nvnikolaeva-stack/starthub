@@ -78,7 +78,7 @@ export function CalendarDetailPanel({
             />
           ) : (
             <ul className="flex flex-col gap-2">
-              {upcomingEvents.slice(0, 5).map((ev) => (
+              {upcomingEvents.slice(0, 10).map((ev) => (
                 <li key={ev.id}>
                   <EventCard
                     event={ev}

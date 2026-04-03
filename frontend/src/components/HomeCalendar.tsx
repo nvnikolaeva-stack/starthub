@@ -80,6 +80,9 @@ export function HomeCalendar() {
     events: Event[];
   } | null>(null);
   const [yearLoading, setYearLoading] = useState(false);
+  const [upcomingPanelEvents, setUpcomingPanelEvents] = useState<Event[]>([]);
+
+  const FETCH_TIMEOUT_MS = 10_000;
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
@@ -142,6 +145,9 @@ export function HomeCalendar() {
 
   useEffect(() => {
     let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, FETCH_TIMEOUT_MS);
     async function run() {
       setLoading(true);
       setError(null);
@@ -156,10 +162,13 @@ export function HomeCalendar() {
         });
         if (cancelled) return;
 
-        let merged = await enrichWithDetails(raw);
+        const merged = await enrichWithDetails(
+          Array.isArray(raw) ? raw : []
+        );
         if (cancelled) return;
 
         setFetchedEvents(merged);
+        setError(null);
       } catch (e) {
         if (cancelled) return;
         setError(
@@ -167,14 +176,42 @@ export function HomeCalendar() {
         );
         setFetchedEvents([]);
       } finally {
+        window.clearTimeout(timeoutId);
         if (!cancelled) setLoading(false);
       }
     }
     void run();
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
     };
-  }, [fetchRange.date_from, fetchRange.date_to, filters.sport, reloadKey, tCommon]);
+  }, [
+    fetchRange.date_from,
+    fetchRange.date_to,
+    filters.sport,
+    reloadKey,
+    tCommon,
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await getEvents({ upcoming: true, limit: 10 });
+        if (cancelled) return;
+        const merged = await enrichWithDetails(
+          Array.isArray(raw) ? raw : []
+        );
+        if (cancelled) return;
+        setUpcomingPanelEvents(merged);
+      } catch {
+        if (!cancelled) setUpcomingPanelEvents([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   useEffect(() => {
     if (calView !== "year") return;
@@ -276,16 +313,6 @@ export function HomeCalendar() {
   const onSelectFromList = useCallback((d: Date) => {
     setSelectedDay(d);
   }, []);
-
-  const upcomingForPanel = useMemo(() => {
-    const sorted = [...displayEvents].sort((a, b) =>
-      a.date_start.localeCompare(b.date_start)
-    );
-    const future = sorted.filter(
-      (e) => (e.date_end || e.date_start).slice(0, 10) >= todayKey
-    );
-    return future.slice(0, 5);
-  }, [displayEvents, todayKey]);
 
   const dayEventsForPanel = useMemo(() => {
     if (!selectedDay) return [];
@@ -416,29 +443,40 @@ export function HomeCalendar() {
                 }}
               />
             )
-          ) : loading ? (
+          ) : loading && calView !== "month" ? (
             <p className="text-sm text-[var(--color-text-muted)]">
               {t("loading")}
             </p>
-          ) : showFilterEmpty ? (
-            <EmptyStateCard
-              title={tEmpty("noFilterResults")}
-              onAction={onResetAll}
-              actionButtonLabel={tEmpty("resetFilters")}
-            />
-          ) : showTrueEmpty ? (
-            <EmptyStateCard
-              title={tEmpty("noEvents")}
-              description={tEmpty("noEventsDesc")}
-              actionHref="/add"
-              actionLabel={tEmpty("addFirst")}
-            />
           ) : calView === "month" ? (
             <>
+              {loading ? (
+                <p className="mb-2 text-sm text-[var(--color-text-muted)]">
+                  {t("loading")}
+                </p>
+              ) : null}
+              {!loading && showFilterEmpty ? (
+                <div className="mb-4">
+                  <EmptyStateCard
+                    title={tEmpty("noFilterResults")}
+                    onAction={onResetAll}
+                    actionButtonLabel={tEmpty("resetFilters")}
+                  />
+                </div>
+              ) : null}
+              {!loading && showTrueEmpty ? (
+                <div className="mb-4">
+                  <EmptyStateCard
+                    title={tEmpty("noEvents")}
+                    description={tEmpty("noEventsDesc")}
+                    actionHref="/add"
+                    actionLabel={tEmpty("addFirst")}
+                  />
+                </div>
+              ) : null}
               <Calendar
                 view={viewMonth}
                 onViewChange={setViewMonth}
-                events={displayEvents}
+                events={loading ? [] : displayEvents}
                 showPast={fetchRange.showPastCalendar}
                 selectedDayKey={selectedDayKey}
                 onSelectDay={onSelectDay}
@@ -468,6 +506,19 @@ export function HomeCalendar() {
                 </section>
               ) : null}
             </>
+          ) : showFilterEmpty ? (
+            <EmptyStateCard
+              title={tEmpty("noFilterResults")}
+              onAction={onResetAll}
+              actionButtonLabel={tEmpty("resetFilters")}
+            />
+          ) : showTrueEmpty ? (
+            <EmptyStateCard
+              title={tEmpty("noEvents")}
+              description={tEmpty("noEventsDesc")}
+              actionHref="/add"
+              actionLabel={tEmpty("addFirst")}
+            />
           ) : calView === "list" ? (
             <CalendarListView
               events={displayEvents}
@@ -488,7 +539,7 @@ export function HomeCalendar() {
           <CalendarDetailPanel
             selectedDay={selectedDay}
             dayEvents={dayEventsForPanel}
-            upcomingEvents={upcomingForPanel}
+            upcomingEvents={upcomingPanelEvents}
             onQuickView={setQuickEvent}
           />
         </div>
