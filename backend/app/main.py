@@ -1,5 +1,3 @@
-import json
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,19 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import Base, engine
 
 import app.models  # noqa: F401 — register models on Base.metadata
-
-_DEFAULT_CORS = '["http://localhost:3000","http://127.0.0.1:3000"]'
-
-
-def _cors_origins() -> list[str]:
-    raw = os.getenv("CORS_ORIGINS", _DEFAULT_CORS)
-    try:
-        data = json.loads(raw)
-        if isinstance(data, list) and all(isinstance(x, str) for x in data):
-            return data
-    except json.JSONDecodeError:
-        pass
-    return ["http://localhost:3000", "http://127.0.0.1:3000"]
 
 
 @asynccontextmanager
@@ -34,9 +19,11 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="#алкардио API", lifespan=lifespan)
 
+# CORS первым middleware — до всех роутеров; для отладки allow_origins=["*"].
+# После отладки верните список из CORS_ORIGINS и не смешивайте ["*"] с credentials в проде.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins(),
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
