@@ -11,8 +11,11 @@ if os.environ.get("STARTHUB_TESTING") == "1":
     _db_file = _backend_dir / "test_starthub.db"
     DATABASE_URL = f"sqlite:///{_db_file}"
 else:
-    _default_sqlite = f"sqlite:///{_backend_dir / 'starthub.db'}"
-    DATABASE_URL = os.getenv("DATABASE_URL", _default_sqlite)
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./starthub.db")
+
+# Render даёт URL вида postgres:// но SQLAlchemy нужен postgresql://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 _engine_kwargs: dict = {}
 if DATABASE_URL.startswith("sqlite"):

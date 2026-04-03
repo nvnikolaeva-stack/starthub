@@ -15,16 +15,37 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.types import Uuid
+from sqlalchemy.types import TypeDecorator
 
 from app.database import Base
+
+
+class GUID(TypeDecorator):
+    """Хранит UUID как String(36) для совместимости SQLite и PostgreSQL."""
+
+    impl = String(36)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, uuid.UUID):
+            return str(value)
+        return str(uuid.UUID(str(value)))
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, uuid.UUID):
+            return value
+        return uuid.UUID(str(value))
 
 
 participant_group_link = Table(
     "participant_groups",
     Base.metadata,
-    Column("participant_id", Uuid(as_uuid=True), ForeignKey("participants.id", ondelete="CASCADE"), primary_key=True),
-    Column("group_id", Uuid(as_uuid=True), ForeignKey("groups.id", ondelete="CASCADE"), primary_key=True),
+    Column("participant_id", GUID(), ForeignKey("participants.id", ondelete="CASCADE"), primary_key=True),
+    Column("group_id", GUID(), ForeignKey("groups.id", ondelete="CASCADE"), primary_key=True),
 )
 
 
@@ -32,7 +53,7 @@ class Group(Base):
     __tablename__ = "groups"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
+        GUID(),
         primary_key=True,
         default=uuid.uuid4,
     )
@@ -56,7 +77,7 @@ class Event(Base):
     __tablename__ = "events"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
+        GUID(),
         primary_key=True,
         default=uuid.uuid4,
     )
@@ -74,7 +95,7 @@ class Event(Base):
         default=lambda: datetime.utcnow(),
     )
     group_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid(as_uuid=True),
+        GUID(),
         ForeignKey("groups.id", ondelete="SET NULL"),
         nullable=True,
     )
@@ -98,7 +119,7 @@ class Participant(Base):
     __tablename__ = "participants"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
+        GUID(),
         primary_key=True,
         default=uuid.uuid4,
     )
@@ -130,17 +151,17 @@ class Registration(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
+        GUID(),
         primary_key=True,
         default=uuid.uuid4,
     )
     event_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
+        GUID(),
         ForeignKey("events.id", ondelete="CASCADE"),
         nullable=False,
     )
     participant_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
+        GUID(),
         ForeignKey("participants.id"),
         nullable=False,
     )
