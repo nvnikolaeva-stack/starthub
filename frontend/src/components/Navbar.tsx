@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useLocale, useTranslations } from "next-intl";
-import { usePathname, useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { Plus } from "lucide-react";
-import { LOCALE_STORAGE_KEY } from "@/i18n/localeCookie";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS: { href: string; labelKey: "calendar" | "stats" }[] = [
@@ -30,20 +29,6 @@ export function Navbar() {
   const pathname = usePathname() || "";
   const [open, setOpen] = useState(false);
   const t = useTranslations("nav");
-  const locale = useLocale();
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-
-  const toggleLang = () => {
-    const next = locale === "ru" ? "en" : "ru";
-    document.cookie = `${LOCALE_STORAGE_KEY}=${next};path=/;max-age=31536000;SameSite=Lax`;
-    try {
-      localStorage.setItem(LOCALE_STORAGE_KEY, next);
-    } catch {
-      /* ignore */
-    }
-    startTransition(() => router.refresh());
-  };
 
   const links = (
     <>
@@ -85,18 +70,6 @@ export function Navbar() {
           >
             {t("newEventCta")}
           </Link>
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={toggleLang}
-            className={cn(
-              "min-h-11 rounded-[var(--radius-full)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-xs font-medium",
-              "text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)]"
-            )}
-            aria-label={locale === "ru" ? "English" : "Русский"}
-          >
-            {locale === "ru" ? "EN" : "RU"}
-          </button>
         </div>
 
         <div className="flex items-center gap-1 md:hidden">
@@ -125,20 +98,6 @@ export function Navbar() {
       {open && (
         <div className="flex flex-col gap-2 border-t border-[var(--color-border)] px-4 py-3 md:hidden">
           <div className="flex flex-col gap-1 pl-1">{links}</div>
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={() => {
-              toggleLang();
-              setOpen(false);
-            }}
-            className={cn(
-              "min-h-11 self-start rounded-[var(--radius-full)] border border-[var(--color-border)] px-4 text-sm font-medium"
-            )}
-            aria-label={locale === "ru" ? "English" : "Русский"}
-          >
-            {locale === "ru" ? "EN" : "RU"}
-          </button>
         </div>
       )}
     </header>

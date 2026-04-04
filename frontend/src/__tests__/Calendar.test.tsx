@@ -62,7 +62,7 @@ describe("Calendar", () => {
       />
     );
     expect(
-      screen.getByRole("heading", { name: "июнь 2026 г." })
+      screen.getByRole("heading", { name: /июнь 2026/i })
     ).toBeInTheDocument();
     const weekHeader = container.querySelector(".mb-1");
     const hdr = weekHeader?.textContent ?? "";
@@ -132,7 +132,7 @@ describe("Calendar", () => {
     expect(cell.querySelector('[data-testid^="calendar-event-pill"]')).toBeNull();
   });
 
-  test("9: выходные с акцентным фоном (суббота)", () => {
+  test("9: выходные с лаймовым фоном (суббота)", () => {
     const view = new Date(2026, 2, 1);
     renderCalendar(
       <Calendar
@@ -145,7 +145,7 @@ describe("Calendar", () => {
       />
     );
     const sat = screen.getByTestId("calendar-cell-2026-03-07");
-    expect(sat.className).toMatch(/color-accent-rgb/);
+    expect(sat.className).toMatch(/bg-lime-50/);
   });
 
   test("10: смена месяца по стрелке", async () => {

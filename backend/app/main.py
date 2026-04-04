@@ -10,6 +10,7 @@ import app.models  # noqa: F401 — register models on Base.metadata
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    # При каждом старте: создать недостающие таблицы (SQLite / PostgreSQL)
     Base.metadata.create_all(bind=engine)
     from app.database import apply_sqlite_migrations  # noqa: PLC0415
 

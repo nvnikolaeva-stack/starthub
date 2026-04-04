@@ -10,10 +10,15 @@ import {
 import { SPORT_CARD_DATE, SPORT_DOT } from "@/lib/sport";
 import { participantNamesPreview } from "@/components/CalendarDay";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Pencil } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+
+export function shortLocation(location: string): string {
+  return location.split(",")[0].trim();
+}
 
 function eventDistances(ev: Event): string {
   const regs = ev.registrations;
@@ -39,6 +44,7 @@ export function EventCard({
   enableQuickView = false,
   onQuickView,
 }: Props) {
+  const router = useRouter();
   const locale = useLocale();
   const t = useTranslations("event");
   const tf = useTranslations("filters");
@@ -59,7 +65,9 @@ export function EventCard({
 
   const dist = eventDistances(event);
   const sportLabel = tf(event.sport_type);
-  const metaParts = [event.location, dist, sportLabel].filter(Boolean);
+  const metaParts = [shortLocation(event.location), dist, sportLabel].filter(
+    Boolean
+  );
   const meta = metaParts.join(" · ");
 
   const tertiary =
@@ -74,71 +82,90 @@ export function EventCard({
     event.id !== "preview";
 
   return (
-    <Link
-      href={`/event/${event.id}`}
-      onClick={(e) => {
-        if (quick) {
-          e.preventDefault();
-          onQuickView(event);
-        }
-      }}
+    <div
       className={cn(
-        "card relative group flex min-h-11 gap-3 overflow-hidden py-2 pl-3 pr-2 no-underline transition-colors sm:min-h-[72px]",
-        "hover:bg-[var(--color-surface-hover)]",
+        "card group relative flex min-h-11 gap-3 overflow-hidden py-2 pl-3 pr-2 transition-colors sm:min-h-[72px]",
         isPast && "opacity-50"
       )}
       data-testid={`event-card-${event.id}`}
     >
-      <span
-        className="absolute bottom-0 left-0 top-0 w-[3px] rounded-sm"
-        style={{ background: SPORT_DOT[event.sport_type] }}
-        aria-hidden
-      />
-      <div
-        className="flex w-[48px] shrink-0 flex-col items-center justify-center rounded-[var(--radius-sm)] px-1.5 py-1 text-center leading-tight"
-        style={{
-          background: dateStyle.bg,
-          color: dateStyle.text,
+      <Link
+        href={`/event/${event.id}`}
+        onClick={(e) => {
+          if (quick) {
+            e.preventDefault();
+            onQuickView(event);
+          }
         }}
+        className={cn(
+          "relative flex min-h-11 min-w-0 flex-1 gap-3 overflow-hidden py-0 pl-0 pr-6 no-underline transition-colors sm:min-h-[72px]",
+          "hover:bg-[var(--color-surface-hover)]"
+        )}
       >
-        <span className="text-[17px] font-medium leading-none">
-          {start.getDate()}
-        </span>
-        <span className="mt-0.5 text-[11px] font-medium">
-          {monthShortLabelLocalized(start, locale)}
-        </span>
-        <span className="text-[10px] font-medium opacity-90">
-          {weekdayShortLocalized(start, locale)}
-        </span>
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 pr-6">
-        <div className="flex items-start justify-between gap-2">
-          <h3
-            className="truncate text-base font-medium leading-snug text-[var(--color-text)]"
-            style={{ fontWeight: 500 }}
-          >
-            {event.name}
-          </h3>
-          {isPast ? (
-            <span className="shrink-0 rounded-[var(--radius-full)] bg-[var(--color-surface-tinted)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-muted)]">
-              {t("completed")}
-            </span>
-          ) : null}
-        </div>
-        <p className="truncate text-sm text-[var(--color-text-secondary)]">
-          {meta}
-        </p>
-        <p
-          className="truncate text-[13px] text-[var(--color-text-muted)]"
-          data-testid="event-card-participants"
+        <span
+          className="absolute bottom-0 left-0 top-0 w-[3px] rounded-sm"
+          style={{ background: SPORT_DOT[event.sport_type] }}
+          aria-hidden
+        />
+        <div
+          className="flex w-[48px] shrink-0 flex-col items-center justify-center rounded-[var(--radius-sm)] px-1.5 py-1 text-center leading-tight"
+          style={{
+            background: dateStyle.bg,
+            color: dateStyle.text,
+          }}
         >
-          {tertiary}
-        </p>
-      </div>
-      <ChevronRight
-        className="absolute right-2 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-placeholder)] group-hover:text-[var(--color-text-secondary)]"
-        aria-hidden
-      />
-    </Link>
+          <span className="text-[17px] font-medium leading-none">
+            {start.getDate()}
+          </span>
+          <span className="mt-0.5 text-[11px] font-medium">
+            {monthShortLabelLocalized(start, locale)}
+          </span>
+          <span className="text-[10px] font-medium opacity-90">
+            {weekdayShortLocalized(start, locale)}
+          </span>
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 pr-6">
+          <div className="flex items-start justify-between gap-2">
+            <h3
+              className="truncate text-base font-medium leading-snug text-[var(--color-text)]"
+              style={{ fontWeight: 500 }}
+            >
+              {event.name}
+            </h3>
+            {isPast ? (
+              <span className="shrink-0 rounded-[var(--radius-full)] bg-[var(--color-surface-tinted)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-muted)]">
+                {t("completed")}
+              </span>
+            ) : null}
+          </div>
+          <p className="truncate text-sm text-[var(--color-text-secondary)]">
+            {meta}
+          </p>
+          <p
+            className="truncate text-[13px] text-[var(--color-text-muted)]"
+            data-testid="event-card-participants"
+          >
+            {tertiary}
+          </p>
+        </div>
+        <ChevronRight
+          className="pointer-events-none absolute right-2 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-placeholder)] group-hover:text-[var(--color-text-secondary)]"
+          aria-hidden
+        />
+      </Link>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          router.push(`/event/${event.id}?edit=true`);
+        }}
+        className="absolute right-3 top-3 z-10 rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+        title="Редактировать"
+        aria-label="Редактировать"
+      >
+        <Pencil size={16} />
+      </button>
+    </div>
   );
 }

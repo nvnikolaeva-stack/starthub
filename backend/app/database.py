@@ -17,11 +17,12 @@ else:
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-_engine_kwargs: dict = {}
+# Для SQLite нужен check_same_thread, для PostgreSQL — нет
+connect_args: dict = {}
 if DATABASE_URL.startswith("sqlite"):
-    _engine_kwargs["connect_args"] = {"check_same_thread": False}
+    connect_args = {"check_same_thread": False}
 
-engine = create_engine(DATABASE_URL, **_engine_kwargs)
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 
 Base = declarative_base()
 

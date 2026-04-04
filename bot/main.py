@@ -27,7 +27,6 @@ from handlers import (
     groups as groups_handler,
     ical,
     join_event,
-    lang as lang_handler,
     list_events,
     result,
     start,
@@ -93,7 +92,6 @@ async def _run() -> None:
     dp.update.middleware(SchedulerMiddleware(reminder_scheduler))
 
     dp.include_router(groups_handler.router)
-    dp.include_router(lang_handler.router)
     dp.include_router(start.router)
     dp.include_router(list_events.router)
     dp.include_router(join_event.router)
@@ -120,7 +118,6 @@ async def _run() -> None:
         BotCommand(command="stats", description="Статистика"),
         BotCommand(command="ical", description="Скачать .ics файл"),
         BotCommand(command="help", description="Справка / Help"),
-        BotCommand(command="lang", description="Язык / Language"),
         BotCommand(
             command="chatid",
             description="Узнать ID чата (для напоминаний)",

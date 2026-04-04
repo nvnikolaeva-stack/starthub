@@ -2,14 +2,10 @@
  * @jest-environment jsdom
  */
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { Navbar } from "@/components/Navbar";
 import { HomeCalendar } from "@/components/HomeCalendar";
 import ru from "@/messages/ru.json";
-import en from "@/messages/en.json";
-
-const mockRefresh = jest.fn();
 
 jest.mock("next/navigation", () => ({
   usePathname: () => "/",
@@ -17,7 +13,7 @@ jest.mock("next/navigation", () => ({
     push: jest.fn(),
     replace: jest.fn(),
     prefetch: jest.fn(),
-    refresh: mockRefresh,
+    refresh: jest.fn(),
   }),
 }));
 
@@ -33,45 +29,18 @@ jest.mock("@/lib/api", () => ({
   listParticipants: jest.fn().mockResolvedValue([]),
 }));
 
-describe("LanguageSwitcher / Navbar", () => {
-  beforeEach(() => {
-    mockRefresh.mockClear();
-    document.cookie = "";
-  });
-
-  test("7: в навбаре видна кнопка смены языка (RU или EN)", () => {
+describe("Navbar / локаль", () => {
+  test("нет кнопки переключения EN/RU", () => {
     render(
       <NextIntlClientProvider locale="ru" messages={ru}>
         <Navbar />
       </NextIntlClientProvider>
     );
-    const langBtn = screen.getByRole("button", { name: /english/i });
-    expect(langBtn).toHaveTextContent("EN");
+    expect(screen.queryByRole("button", { name: /english/i })).toBeNull();
+    expect(screen.queryByText("EN")).toBeNull();
   });
 
-  test("8: после клика и смены локали текст кнопки меняется EN → RU", async () => {
-    const user = userEvent.setup();
-    const { rerender } = render(
-      <NextIntlClientProvider locale="ru" messages={ru}>
-        <Navbar />
-      </NextIntlClientProvider>
-    );
-    expect(screen.getByRole("button", { name: /english/i })).toHaveTextContent(
-      "EN"
-    );
-    await user.click(screen.getByRole("button", { name: /english/i }));
-    expect(mockRefresh).toHaveBeenCalled();
-    rerender(
-      <NextIntlClientProvider locale="en" messages={en}>
-        <Navbar />
-      </NextIntlClientProvider>
-    );
-    expect(screen.getByRole("button", { name: /русский/i })).toHaveTextContent(
-      "RU"
-    );
-  });
-
-  test("9: язык по умолчанию ru — заголовок календаря по-русски", async () => {
+  test("язык по умолчанию ru — заголовок календаря по-русски", async () => {
     render(
       <NextIntlClientProvider locale="ru" messages={ru}>
         <HomeCalendar />

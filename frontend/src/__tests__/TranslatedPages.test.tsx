@@ -1,13 +1,12 @@
 /**
  * @jest-environment jsdom
  */
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { HomeCalendar } from "@/components/HomeCalendar";
 import { AddEventForm } from "@/components/AddEventForm";
 import { StatsPageContent } from "@/components/StatsPageContent";
 import ru from "@/messages/ru.json";
-import en from "@/messages/en.json";
 
 jest.mock("@/hooks/use-is-mobile", () => ({
   useIsMobile: () => false,
@@ -57,8 +56,8 @@ describe("TranslatedPages", () => {
       ).toBeInTheDocument();
       expect(screen.getByText("Ближайшие старты")).toBeInTheDocument();
       const sportSelect = screen.getByLabelText("Спорт");
-      const bar = sportSelect.closest("div.sticky") as HTMLElement;
-      expect(within(bar).getByPlaceholderText("Поиск...")).toBeInTheDocument();
+      expect(sportSelect).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("Поиск...")).toBeInTheDocument();
       const opts = [...(sportSelect as HTMLSelectElement).options].map((o) => o.text);
       expect(opts.some((x) => /Плавание/.test(x))).toBe(true);
       expect(opts.some((x) => /Бег/.test(x))).toBe(true);
@@ -92,74 +91,5 @@ describe("TranslatedPages", () => {
       expect(screen.getByRole("button", { name: "Команда" })).toBeInTheDocument();
       expect(screen.getAllByText(/Участников/).length).toBeGreaterThan(0);
     });
-  });
-
-  describe("EN", () => {
-    test("13: главная на английском", async () => {
-      render(
-        <NextIntlClientProvider locale="en" messages={en}>
-          <HomeCalendar />
-        </NextIntlClientProvider>
-      );
-      expect(
-        await screen.findByRole("heading", { name: "Event calendar" })
-      ).toBeInTheDocument();
-      expect(screen.getByText("Upcoming events")).toBeInTheDocument();
-      const sportSelect = screen.getByLabelText("Sport");
-      const bar = sportSelect.closest("div.sticky") as HTMLElement;
-      expect(within(bar).getByPlaceholderText("Search…")).toBeInTheDocument();
-      const opts = [...(sportSelect as HTMLSelectElement).options].map((o) => o.text);
-      expect(opts.some((x) => /Swimming/i.test(x))).toBe(true);
-      expect(opts.some((x) => /Running/i.test(x))).toBe(true);
-    });
-
-    test("14: форма на английском", async () => {
-      render(
-        <NextIntlClientProvider locale="en" messages={en}>
-          <AddEventForm />
-        </NextIntlClientProvider>
-      );
-      expect(
-        await screen.findByRole("heading", { name: "Add event" })
-      ).toBeInTheDocument();
-      expect(screen.getByText("Sport type")).toBeInTheDocument();
-      expect(screen.getByText("Event name")).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /Save event/ })
-      ).toBeInTheDocument();
-    });
-
-    test("15: статистика на английском", async () => {
-      render(
-        <NextIntlClientProvider locale="en" messages={en}>
-          <StatsPageContent />
-        </NextIntlClientProvider>
-      );
-      expect(
-        await screen.findByRole("heading", { name: "Statistics" })
-      ).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Team" })).toBeInTheDocument();
-      expect(screen.getByText(/Participants/)).toBeInTheDocument();
-    });
-  });
-
-  test("16: на EN-главной нет типичных русских UI-строк (пустые данные API)", async () => {
-    render(
-      <NextIntlClientProvider locale="en" messages={en}>
-        <HomeCalendar />
-      </NextIntlClientProvider>
-    );
-    await screen.findByRole("heading", { name: "Event calendar" });
-    const body = document.body.textContent ?? "";
-    const forbidden = [
-      "Календарь стартов",
-      "Ближайшие старты",
-      "Плавание",
-      "Бег",
-      "Добавить старт",
-    ];
-    for (const frag of forbidden) {
-      expect(body).not.toContain(frag);
-    }
   });
 });

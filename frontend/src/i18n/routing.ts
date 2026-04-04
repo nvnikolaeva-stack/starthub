@@ -3,7 +3,7 @@ import { defineRouting } from "next-intl/routing";
 import { LOCALE_STORAGE_KEY } from "@/i18n/localeCookie";
 
 export const routing = defineRouting({
-  locales: ["ru", "en"],
+  locales: ["ru"],
   defaultLocale: "ru",
   localePrefix: "never",
   localeCookie: {

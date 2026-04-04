@@ -26,7 +26,11 @@ module.exports = {
       },
     ],
   },
-  testPathIgnorePatterns: ["<rootDir>/.next/", "<rootDir>/node_modules/"],
+  testPathIgnorePatterns: [
+    "<rootDir>/.next/",
+    "<rootDir>/node_modules/",
+    "<rootDir>/e2e/",
+  ],
   // next-intl / use-intl — ESM; не исключаем их из трансформации
   transformIgnorePatterns: [
     "/node_modules/(?!(@formatjs|next-intl|use-intl|intl-messageformat)/)",

@@ -10,7 +10,7 @@ import {
 import { CalendarDay } from "@/components/CalendarDay";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-is-mobile";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 
 function isEventPast(ev: Event, today: string): boolean {
@@ -35,7 +35,6 @@ export function Calendar({
   selectedDayKey,
   onSelectDay,
 }: Props) {
-  const locale = useLocale();
   const t = useTranslations("calendar");
   const monthCompact = useIsMobile();
 
@@ -58,18 +57,12 @@ export function Calendar({
   );
 
   const monthHeading = useMemo(() => {
-    if (locale === "en") {
-      const s = new Intl.DateTimeFormat("en-US", {
-        month: "long",
-        year: "numeric",
-      }).format(view);
-      return s.charAt(0).toUpperCase() + s.slice(1);
-    }
-    return new Intl.DateTimeFormat("ru-RU", {
+    const s = new Intl.DateTimeFormat("ru-RU", {
       month: "long",
       year: "numeric",
     }).format(view);
-  }, [view, locale]);
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }, [view]);
 
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 shadow-[var(--shadow-sm)] sm:p-4">
@@ -103,9 +96,7 @@ export function Calendar({
           <div
             key={w}
             className={
-              i >= 5
-                ? "font-bold text-[var(--color-primary)]"
-                : undefined
+              i >= 5 ? "font-semibold text-lime-700" : undefined
             }
           >
             {w}

@@ -4,7 +4,6 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, setRequestLocale } from "next-intl/server";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
-import { LocaleSync } from "@/components/LocaleSync";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -35,7 +34,6 @@ export default async function RootLayout({
     <html lang={locale} className={`${inter.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <LocaleSync />
           <Navbar />
           <main className="flex-1">{children}</main>
         </NextIntlClientProvider>

@@ -20,8 +20,9 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeft, Pencil } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 const SPORT_OPTIONS: SportType[] = [
@@ -56,6 +57,8 @@ function regTelegram(r: Registration): string | null {
 
 export function EventCardFull({ eventId }: { eventId: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const openedEditFromQuery = useRef(false);
   const locale = useLocale();
   const t = useTranslations("event");
   const tf = useTranslations("filters");
@@ -111,6 +114,7 @@ export function EventCardFull({ eventId }: { eventId: string }) {
   const [editBusy, setEditBusy] = useState(false);
 
   const [delBusy, setDelBusy] = useState(false);
+  const [saveToast, setSaveToast] = useState(false);
 
   useEffect(() => {
     if (!joinOpen || !event) return;
@@ -125,6 +129,14 @@ export function EventCardFull({ eventId }: { eventId: string }) {
       )
       .catch(() => setPresetDists([]));
   }, [joinOpen, event]);
+
+  useEffect(() => {
+    if (openedEditFromQuery.current) return;
+    if (searchParams.get("edit") !== "true") return;
+    if (loadState !== "ok" || !event) return;
+    openedEditFromQuery.current = true;
+    setEditOpen(true);
+  }, [searchParams, loadState, event]);
 
   useEffect(() => {
     if (!event || loadState !== "ok" || !editOpen) return;
@@ -206,7 +218,12 @@ export function EventCardFull({ eventId }: { eventId: string }) {
         created_by: editForm.created_by,
       });
       setEditOpen(false);
+      setSaveToast(true);
       await reload();
+      window.setTimeout(() => {
+        setSaveToast(false);
+        router.push("/");
+      }, 1500);
     } catch (e) {
       setErrMsg(e instanceof ApiError ? e.message : tCommon("serverError"));
     } finally {
@@ -264,6 +281,14 @@ export function EventCardFull({ eventId }: { eventId: string }) {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
+      {saveToast ? (
+        <div
+          role="status"
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-slate-200 bg-slate-900 px-4 py-2.5 text-sm text-white shadow-lg"
+        >
+          Старт сохранён!
+        </div>
+      ) : null}
       {errMsg && (
         <div
           className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
@@ -279,6 +304,14 @@ export function EventCardFull({ eventId }: { eventId: string }) {
         )}
       >
         <div className="space-y-4 p-5 sm:p-6">
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            className="mb-1 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+          >
+            <ArrowLeft size={16} aria-hidden />
+            К календарю
+          </button>
           <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">
             <SportIcon sport={event.sport_type} className="shrink-0" />
             {tf(event.sport_type).toUpperCase()}
@@ -376,10 +409,11 @@ export function EventCardFull({ eventId }: { eventId: string }) {
             <Button
               type="button"
               variant="outline"
-              className="min-h-[44px] w-full min-w-0 whitespace-normal break-words sm:flex-1 sm:min-w-[140px] sm:max-w-full"
+              className="inline-flex min-h-[44px] w-full min-w-0 items-center justify-center gap-2 whitespace-normal break-words px-4 py-2.5 sm:flex-1 sm:min-w-[140px] sm:max-w-full"
               onClick={() => setEditOpen(true)}
             >
-              ✏️ {t("edit")}
+              <Pencil size={16} aria-hidden />
+              <span>{t("edit")}</span>
             </Button>
             <Button
               type="button"

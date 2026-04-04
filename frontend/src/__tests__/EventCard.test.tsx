@@ -12,6 +12,14 @@ jest.mock("@/hooks/use-is-mobile", () => ({
   useIsMobile: () => false,
 }));
 
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+    prefetch: jest.fn(),
+  }),
+}));
+
 function renderCard(ui: ReactElement) {
   return render(
     <NextIntlClientProvider locale="ru" messages={ru}>

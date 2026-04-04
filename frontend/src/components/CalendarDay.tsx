@@ -123,7 +123,7 @@ export function CalendarDay({
           onClick={() => onSelectDay(date)}
           className={cn(
             "flex min-h-11 w-full flex-col items-center justify-center gap-0.5 rounded-[var(--radius-md)] border px-0.5 py-1 text-center transition-colors",
-            weekend && "bg-[rgba(var(--color-accent-rgb),0.12)]",
+            weekend && "bg-lime-50",
             !weekend && "bg-[var(--color-surface)]",
             isToday && "border-2 border-[var(--color-primary)]",
             selected &&
@@ -133,7 +133,7 @@ export function CalendarDay({
             !isToday && !selected && "border border-[var(--color-border)]",
             dimmedPast && "opacity-50",
             "cursor-pointer hover:border-[var(--color-border-hover)]",
-            weekend && "hover:bg-[rgba(var(--color-accent-rgb),0.2)]"
+            weekend && "hover:bg-lime-100"
           )}
         >
           <span className="text-[13px] font-medium leading-none text-[var(--color-text)]">
@@ -162,7 +162,7 @@ export function CalendarDay({
         onClick={() => onSelectDay(date)}
         className={cn(
           "flex min-h-[104px] w-full flex-col rounded-[var(--radius-md)] border p-1.5 text-left transition-colors sm:min-h-[112px]",
-          weekend && "bg-[rgba(var(--color-accent-rgb),0.12)]",
+          weekend && "bg-lime-50",
           !weekend && "bg-[var(--color-surface)]",
           isToday && "border-2 border-[var(--color-primary)]",
           selected &&
@@ -172,7 +172,7 @@ export function CalendarDay({
           !isToday && !selected && "border border-[var(--color-border)]",
           dimmedPast && "opacity-50",
           "cursor-pointer hover:border-[var(--color-border-hover)]",
-          weekend && "hover:bg-[rgba(var(--color-accent-rgb),0.22)]",
+          weekend && "hover:bg-lime-100",
           !weekend && "hover:bg-[var(--color-surface-hover)]"
         )}
       >

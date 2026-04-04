@@ -1,4 +1,4 @@
-"""Переводы бота RU/EN. Язык по умолчанию из Telegram; /lang фиксирует выбор в памяти."""
+"""Переводы бота RU/EN. Язык по умолчанию из кода Telegram; тексты EN остаются для носителей с en-клиентом."""
 
 from __future__ import annotations
 
@@ -25,8 +25,6 @@ RU: dict[str, str] = {
         "⏰ Напоминания:\n"
         "Бот автоматически напоминает в каждой группе за день до старта.\n"
         "Просто добавь бота в группу — он начнёт работать!\n\n"
-        "🌐 Язык:\n"
-        "/lang — Выбрать русский или English\n\n"
         "💡 В личке ты видишь старты из всех своих групп.\n"
         "В группе — только старты этой группы.\n\n"
         "⚙️ Отладка:\n"
@@ -328,8 +326,6 @@ EN: dict[str, str] = {
         "⏰ Reminders:\n"
         "The bot sends group reminders one day before each event.\n"
         "Add the bot to a group — it starts working automatically.\n\n"
-        "🌐 Language:\n"
-        "/lang — Russian or English\n\n"
         "💡 In private chat you see events from all your groups.\n"
         "In a group — only that group's events.\n\n"
         "⚙️ Debug:\n"
